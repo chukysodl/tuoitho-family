@@ -29,7 +29,15 @@ public sealed class WindowsSessionStateProvider : IWindowsSessionStateProvider
     public int? GetActiveConsoleSessionId()
     {
         var sessionId = WTSGetActiveConsoleSessionId();
-        return sessionId == NoActiveConsoleSession ? null : checked((int)sessionId);
+        if (sessionId == NoActiveConsoleSession)
+        {
+            return null;
+        }
+
+        var candidateSessionId = checked((int)sessionId);
+        return GetSessionState(candidateSessionId) == WindowsSessionState.LoggedOut
+            ? null
+            : candidateSessionId;
     }
 
     public WindowsSessionState GetSessionState(int sessionId)
