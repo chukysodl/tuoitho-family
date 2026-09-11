@@ -23,12 +23,13 @@ public sealed class SqliteDatabaseTests
 
             await using (var connection = await database.OpenConnectionAsync())
             {
-                Assert.Equal(1, await CountRowsAsync(connection, "schema_migrations"));
-                Assert.Equal(1, await CountRowsAsync(connection, "device_config"));
-                Assert.Equal(1, await CountRowsAsync(connection, "operational_events"));
+                Assert.Equal(1, await CountTablesAsync(connection, "schema_migrations"));
+                Assert.Equal(1, await CountTablesAsync(connection, "device_config"));
+                Assert.Equal(1, await CountTablesAsync(connection, "time_usage_daily"));
+                Assert.Equal(1, await CountTablesAsync(connection, "time_tracking_checkpoints"));
             }
 
-            Assert.Equal(1, SqliteDatabase.CurrentSchemaVersion);
+            Assert.Equal(2, SqliteDatabase.CurrentSchemaVersion);
         }
         finally
         {
@@ -68,7 +69,7 @@ public sealed class SqliteDatabaseTests
         }
     }
 
-    private static async Task<int> CountRowsAsync(SqliteConnection connection, string tableName)
+    private static async Task<int> CountTablesAsync(SqliteConnection connection, string tableName)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = $table_name;";

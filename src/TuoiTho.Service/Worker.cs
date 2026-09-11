@@ -1,31 +1,48 @@
+using TuoiTho.Core.Time;
+using TuoiTho.Storage;
+
 namespace TuoiTho.Service;
 
-public sealed class Worker(ILogger<Worker> logger) : BackgroundService
+public sealed class Worker(
+    SqliteDatabase database,
+    SessionTimeEngine engine,
+    WindowsSessionEventSource sessionEventSource,
+    ILogger<Worker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        ServiceLog.Started(logger);
+        TimeTrackingLog.Starting(logger);
+        await database.InitializeAsync(stoppingToken);
 
         try
         {
-            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+            var trackingHost = new SessionTimeTrackingHost(engine, sessionEventSource);
+            await trackingHost.RunAsync(stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // Normal service shutdown.
+            // Normal service shutdown; the tracking host flushes its checkpoint before returning.
+        }
+        catch (Exception exception)
+        {
+            TimeTrackingLog.Failed(logger, exception);
+            throw;
         }
         finally
         {
-            ServiceLog.Stopped(logger);
+            TimeTrackingLog.Stopped(logger);
         }
     }
 }
 
-internal static partial class ServiceLog
+internal static partial class TimeTrackingLog
 {
-    [LoggerMessage(EventId = 1000, Level = LogLevel.Information, Message = "TuoiTho service started.")]
-    public static partial void Started(ILogger logger);
+    [LoggerMessage(EventId = 1100, Level = LogLevel.Information, Message = "TuoiTho time tracking service started.")]
+    public static partial void Starting(ILogger logger);
 
-    [LoggerMessage(EventId = 1001, Level = LogLevel.Information, Message = "TuoiTho service stopped.")]
+    [LoggerMessage(EventId = 1101, Level = LogLevel.Information, Message = "TuoiTho time tracking service stopped.")]
     public static partial void Stopped(ILogger logger);
+
+    [LoggerMessage(EventId = 1102, Level = LogLevel.Error, Message = "TuoiTho time tracking service failed.")]
+    public static partial void Failed(ILogger logger, Exception exception);
 }

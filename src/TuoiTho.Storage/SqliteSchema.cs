@@ -4,7 +4,7 @@ internal sealed record Migration(string Id, string Sql);
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public static IReadOnlyList<Migration> Migrations { get; } =
     [
@@ -89,6 +89,28 @@ internal static class SqliteSchema
                 ON youtube_rules (profile_id);
             CREATE INDEX IF NOT EXISTS ix_quota_counters_profile_date
                 ON quota_counters (profile_id, counter_date);
+            """),
+        new Migration(
+            "0002-time-accounting",
+            """
+            CREATE TABLE IF NOT EXISTS time_usage_daily (
+                profile_id TEXT NOT NULL,
+                usage_date TEXT NOT NULL,
+                active_milliseconds INTEGER NOT NULL DEFAULT 0,
+                updated_at_utc TEXT NOT NULL,
+                PRIMARY KEY (profile_id, usage_date)
+            );
+
+            CREATE TABLE IF NOT EXISTS time_tracking_checkpoints (
+                profile_id TEXT NOT NULL PRIMARY KEY,
+                session_id INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                last_observed_at_utc TEXT NOT NULL,
+                boot_started_at_utc TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS ix_time_usage_daily_date
+                ON time_usage_daily (usage_date);
             """)
     ];
 }

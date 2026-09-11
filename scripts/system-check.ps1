@@ -54,6 +54,9 @@ if (-not $SkipBuild) {
 if (-not $SkipTests) {
     dotnet test .\TuoiTho.sln --configuration $Configuration --no-build --no-restore
     if ($LASTEXITCODE -ne 0) { throw "System Check tests failed with exit code $LASTEXITCODE." }
+
+    dotnet test .\TuoiTho.sln --configuration $Configuration --no-build --no-restore --filter "FullyQualifiedName~SystemCheckRecordsOneLocalSession"
+    if ($LASTEXITCODE -ne 0) { throw "System Check time-accounting proof failed with exit code $LASTEXITCODE." }
 }
 
 Write-Output "SYSTEM CHECK PASS ($Configuration)"

@@ -74,6 +74,7 @@ SQLite stores:
 - child profile;
 - policies;
 - quota counters;
+- time tracking checkpoints;
 - temporary grants;
 - pending requests;
 - minimal operational audit events.
