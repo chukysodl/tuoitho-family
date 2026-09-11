@@ -37,13 +37,8 @@ Hosts emit JSON structured logs for operational lifecycle events. Log fields mus
 
 ## GitHub Actions availability
 
-GitHub Actions run `34549792780` for commit `f48f9a8af280179487edb189250c44cf27bdc827` did not allocate a runner or execute any workflow step. GitHub's job annotation states: "The job was not started because recent account payments have failed or your spending limit needs to be increased."
+Historical note: GitHub Actions run `34549792780` for commit `f48f9a8af280179487edb189250c44cf27bdc827` did not allocate a runner because the repository was private and GitHub reported a billing/spending-limit block.
 
-This is an account billing/spending-limit block on the private repository's GitHub-hosted `windows-latest` runner, not a workflow, package, or code failure. The workflow was recognized by GitHub and the equivalent local build, tests, and System Check pass.
+The repository was made public on 2026-09-11. GitHub Actions run `34552234667` then passed every workflow step for commit `322562891d59d23d939df3952a5ab85a10259789`: checkout, .NET setup, restore, build, test, and System Check.
 
-Zero-cost compatible options are:
-
-1. Configure a repository self-hosted Windows runner and change `runs-on` to its labels. GitHub does not charge Actions minutes for self-hosted runners, though the maintainer operates the machine.
-2. If making the project public is acceptable, keep the current standard GitHub-hosted runner: standard runners are free for public repositories.
-
-Do not mark GitHub Actions as passing until an available runner executes the workflow successfully.
+The selected zero-cost configuration is the current standard GitHub-hosted `windows-latest` runner on this public repository. If the repository must become private again, use a repository self-hosted Windows runner or restore an account billing allowance before relying on GitHub-hosted Windows runners.
