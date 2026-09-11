@@ -1,0 +1,41 @@
+# Build output
+bin/
+obj/
+[Bb]uild/
+[Bb]uild[Oo]utput/
+
+# Visual Studio and IDE state
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test and coverage output
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# Local configuration and secrets
+appsettings.Local.json
+*.pfx
+*.publishsettings
+secrets.json
+
+# Local-first database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log

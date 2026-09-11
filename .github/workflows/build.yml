@@ -1,0 +1,39 @@
+name: Build and test
+
+on:
+  push:
+    branches:
+      - main
+      - 'task/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore TuoiTho.sln
+
+      - name: Build
+        run: dotnet build TuoiTho.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test TuoiTho.sln --configuration Release --no-build --no-restore
+
+      - name: System Check
+        shell: pwsh
+        run: ./scripts/system-check.ps1 -SkipBuild -SkipTests

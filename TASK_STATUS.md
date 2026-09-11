@@ -2,7 +2,7 @@
 
 | Task | Status | Branch | Commit | User acceptance |
 |---|---|---|---|---|
-| TASK-001 | PENDING | task/001-bootstrap | - | not required |
+| TASK-001 | PASS | task/001-bootstrap | see final report | not required |
 | TASK-002 | PENDING | task/002-time-engine | - | not required |
 | TASK-003 | PENDING | task/003-device-time-policy | - | M1 |
 | TASK-004 | PENDING | task/004-app-control | - | M2 |

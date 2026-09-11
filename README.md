@@ -21,6 +21,30 @@ Phần mềm miễn phí/mã nguồn mở giúp phụ huynh **quản lý** việ
 - Browser control: Chrome/Edge Extension Manifest V3 + native/local bridge
 - Remote: adapter tách rời; triển khai đầu tiên dùng hạ tầng free-tier, không khóa nhà cung cấp
 
+## Cấu trúc solution
+
+- `src/TuoiTho.Core`: domain thuần .NET, không phụ thuộc Windows, UI hoặc cloud.
+- `src/TuoiTho.Storage`: SQLite local-first và schema migrations.
+- `src/TuoiTho.Service`: Windows Service host cho enforcement.
+- `src/TuoiTho.SessionAgent`: host trong child session cho countdown/warnings.
+- `src/TuoiTho.Parent`: ASP.NET Core host cho parent dashboard.
+- `tests/TuoiTho.Tests`: unit, SQLite integration và dependency sanity tests.
+
+## Phát triển local
+
+Yêu cầu .NET SDK 10.x. Từ thư mục gốc repository:
+
+```powershell
+./scripts/build.ps1
+./scripts/system-check.ps1
+```
+
+Các lệnh tương đương là `dotnet restore TuoiTho.sln`, `dotnet build TuoiTho.sln --configuration Release` và `dotnet test TuoiTho.sln --configuration Release`. SQLite được tạo tại đường dẫn do host cấu hình; file database local không được commit.
+
+Warnings được coi là lỗi trong mọi project. Nullable reference types và .NET analyzers được bật tập trung trong `Directory.Build.props`. Log runtime dùng JSON structured logging và chỉ ghi component/event vận hành, không ghi nội dung cá nhân.
+
+Danh sách package cùng license được ghi trong `docs/DEPENDENCIES.md`; hướng dẫn chi tiết nằm trong `docs/DEVELOPMENT.md`.
+
 ## Bắt đầu cho Codex
 
 Đọc theo thứ tự:
