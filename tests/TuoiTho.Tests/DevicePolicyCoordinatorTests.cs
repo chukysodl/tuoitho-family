@@ -1,0 +1,12 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using TuoiTho.Core.Policy;
+using TuoiTho.Core.Time;
+using TuoiTho.Service;
+namespace TuoiTho.Tests;
+public sealed class DevicePolicyCoordinatorTests
+{
+ [Fact] public async Task QuotaExhaustedPublishesStatusAndSimulatesLock(){var clock=new FakeClock(new DateTimeOffset(2026,9,14,9,0,0,TimeSpan.Zero),TimeZoneInfo.Utc);var policy=new DeviceTimePolicy("child",7,30,[new AllowedUsageWindow(DayOfWeek.Monday,new(9,0),new(10,0))],DeviceTimePolicy.DefaultWarnings,false,false,true){ManagedUserSid="child"};var policies=new Store(policy);var usage=new FakeTimeUsageStore();await usage.SaveAsync("child",new TimeTrackingCheckpoint(7,SessionActivityState.Active,clock.UtcNow,clock.UtcNow),[new DailyUsageSlice(new DateOnly(2026,9,14),TimeSpan.FromMinutes(30))]);var native=new Native();var publisher=new Publisher();var coordinator=new DevicePolicyCoordinator(policies,usage,clock,new DeviceTimePolicyEngine(clock),new SafeChildSessionEnforcer(native,NullLogger<SafeChildSessionEnforcer>.Instance),publisher,new PolicyChangeSignal());var result=await coordinator.EvaluateAsync("child");Assert.Equal("SIMULATED_LOCK",result!.Outcome);Assert.Empty(native.Disconnected);Assert.Equal(AccessDenyReason.QuotaExhausted,publisher.Warning!.Reason);}
+ private sealed class Store(DeviceTimePolicy p):IDeviceTimePolicyStore{public Task<DeviceTimePolicy?> LoadAsync(string id,CancellationToken c=default)=>Task.FromResult<DeviceTimePolicy?>(p);public Task SaveAsync(DeviceTimePolicy p,CancellationToken c=default)=>Task.CompletedTask;public Task AddGrantAsync(string id,TemporaryGrant g,CancellationToken c=default)=>Task.CompletedTask;public Task<IReadOnlyList<TemporaryGrant>> GetGrantsAsync(string id,CancellationToken c=default)=>Task.FromResult<IReadOnlyList<TemporaryGrant>>([]);}
+ private sealed class Publisher:IPolicyWarningPublisher{public SessionWarning? Warning;public Task PublishAsync(SessionWarning w,CancellationToken c=default){Warning=w;return Task.CompletedTask;}}
+ private sealed class Native:IManagedSessionNativeApi{public List<int> Disconnected=[];public Task<bool> IsManagedChildSessionAsync(int id,string sid,CancellationToken c=default)=>Task.FromResult(true);public Task DisconnectSessionAsync(int id,CancellationToken c=default){Disconnected.Add(id);return Task.CompletedTask;}}
+}

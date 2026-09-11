@@ -22,7 +22,7 @@ public sealed class CheckpointCControlAndEnforcementTests
             var store = new SqliteDeviceTimePolicyStore(database);
             var policy = Policy();
             await store.SaveAsync(policy);
-            var service = new ParentControlService(store, new FixedTimeProvider());
+            var service = new ParentControlService(store, new FixedTimeProvider(), new PolicyChangeSignal());
             var parents = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "S-1-5-21-parent" };
 
             Assert.True((await service.ExecuteAsync(new(ParentControlAction.GrantMinutes, "child", 7, 15), "S-1-5-21-parent", parents)).Accepted);
@@ -39,7 +39,7 @@ public sealed class CheckpointCControlAndEnforcementTests
     public async Task ChildOrSpoofedParentCommandFailsClosed()
     {
         var store = new InMemoryPolicyStore(Policy());
-        var service = new ParentControlService(store, new FixedTimeProvider());
+        var service = new ParentControlService(store, new FixedTimeProvider(), new PolicyChangeSignal());
         var result = await service.ExecuteAsync(new(ParentControlAction.SetParentLock, "child", 7), "S-1-5-21-child", new HashSet<string> { "S-1-5-21-parent" });
         Assert.False(result.Accepted);
         Assert.Equal("UNAUTHORIZED", result.Error);
@@ -53,7 +53,7 @@ public sealed class CheckpointCControlAndEnforcementTests
     public async Task OverrideAndClearingOverrideRestoreNormalPolicy()
     {
         var store = new InMemoryPolicyStore(Policy());
-        var service = new ParentControlService(store, new FixedTimeProvider());
+        var service = new ParentControlService(store, new FixedTimeProvider(), new PolicyChangeSignal());
         var parents = new HashSet<string> { "S-1-5-21-parent" };
         Assert.True((await service.ExecuteAsync(new(ParentControlAction.EmergencyOverride, "child", 7), "S-1-5-21-parent", parents)).Policy!.ParentOverride);
         var cleared = await service.ExecuteAsync(new(ParentControlAction.ClearOverride, "child", 7), "S-1-5-21-parent", parents);
@@ -107,6 +107,18 @@ public sealed class CheckpointCControlAndEnforcementTests
         Assert.Null(await ParentControlListener.ReadCommandAsync(stream, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task AllowedEpisodeResetsEnforcementLatch()
+    {
+        var native = new FakeNativeApi { IdentityMatches = true };
+        var enforcer = new SafeChildSessionEnforcer(native, NullLogger<SafeChildSessionEnforcer>.Instance);
+        var policy = Policy() with { TestMode = false };
+        var denied = new PolicyDecision(false, AccessDenyReason.QuotaExhausted, 0, []);
+        await enforcer.EnforceAsync(policy, 7, denied);
+        await enforcer.EnforceAsync(policy, 7, new PolicyDecision(true, AccessDenyReason.None, 10, []));
+        await enforcer.EnforceAsync(policy, 7, denied);
+        Assert.Equal([7, 7], native.Disconnected);
+    }
     private static DeviceTimePolicy Policy() => new("child", 7, 30, [new AllowedUsageWindow(DayOfWeek.Monday, new TimeOnly(9, 0), new TimeOnly(10, 0))], DeviceTimePolicy.DefaultWarnings, false, false, true) { ManagedUserSid = "S-1-5-21-child" };
 
     private sealed class FixedTimeProvider : TimeProvider { public override DateTimeOffset GetUtcNow() => new(2026, 9, 14, 9, 0, 0, TimeSpan.Zero); }
