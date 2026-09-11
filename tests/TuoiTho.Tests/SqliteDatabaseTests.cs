@@ -29,7 +29,7 @@ public sealed class SqliteDatabaseTests
                 Assert.Equal(1, await CountTablesAsync(connection, "time_tracking_checkpoints"));
             }
 
-            Assert.Equal(2, SqliteDatabase.CurrentSchemaVersion);
+            Assert.Equal(3, SqliteDatabase.CurrentSchemaVersion);
         }
         finally
         {

@@ -4,7 +4,7 @@ internal sealed record Migration(string Id, string Sql);
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public static IReadOnlyList<Migration> Migrations { get; } =
     [
@@ -111,6 +111,15 @@ internal static class SqliteSchema
 
             CREATE INDEX IF NOT EXISTS ix_time_usage_daily_date
                 ON time_usage_daily (usage_date);
+            """),
+        new Migration(
+            "0003-device-time-policy",
+            """
+            CREATE TABLE IF NOT EXISTS device_time_policies (
+                profile_id TEXT NOT NULL PRIMARY KEY,
+                policy_json TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
+            );
             """)
     ];
 }
