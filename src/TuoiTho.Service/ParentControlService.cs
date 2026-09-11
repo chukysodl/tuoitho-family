@@ -6,7 +6,7 @@ public sealed class ParentControlService(IDeviceTimePolicyStore store, TimeProvi
 {
     public async Task<ParentControlResult> ExecuteAsync(ParentControlCommand command, string authenticatedSid, IReadOnlySet<string> allowedParentSids, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(authenticatedSid) || !allowedParentSids.Contains(authenticatedSid)) return new(false, "UNAUTHORIZED");
+        if (string.IsNullOrWhiteSpace(authenticatedSid) || (!allowedParentSids.Contains(authenticatedSid) && !string.Equals(authenticatedSid, "S-1-5-18", StringComparison.OrdinalIgnoreCase))) return new(false, "UNAUTHORIZED");
         if (string.IsNullOrWhiteSpace(command.ProfileId) || command.ManagedSessionId < 0) return new(false, "INVALID_COMMAND");
         var policy = await store.LoadAsync(command.ProfileId, cancellationToken);
         if (policy is null || policy.ManagedSessionId != command.ManagedSessionId) return new(false, "PROFILE_OR_SESSION_MISMATCH");

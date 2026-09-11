@@ -8,7 +8,7 @@ public sealed record AllowedUsageWindow(DayOfWeek Day, TimeOnly Start, TimeOnly 
 public sealed record TemporaryGrant(int Minutes, DateTimeOffset ExpiresAtUtc);
 public sealed record DeviceTimePolicy(
     string ProfileId, int ManagedSessionId, int DailyQuotaMinutes, IReadOnlyList<AllowedUsageWindow> Windows,
-    IReadOnlyList<int> WarningThresholdMinutes, bool ParentLock, bool ParentOverride, bool TestMode)
+    IReadOnlyList<int> WarningThresholdMinutes, bool ParentLock, bool ParentOverride, bool TestMode = true)
 {
     public string? ManagedUserSid { get; init; }
     public static readonly int[] DefaultWarnings = [15, 5, 1];

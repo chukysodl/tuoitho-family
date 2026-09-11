@@ -46,6 +46,7 @@ public sealed class CheckpointCControlAndEnforcementTests
         var spoofed = await service.ExecuteAsync(new(ParentControlAction.SetParentLock, "child", 8), "S-1-5-21-parent", new HashSet<string> { "S-1-5-21-parent" });
         Assert.False(spoofed.Accepted);
         Assert.Equal("PROFILE_OR_SESSION_MISMATCH", spoofed.Error);
+        Assert.True((await service.ExecuteAsync(new(ParentControlAction.SetParentLock, "child", 7), "S-1-5-18", new HashSet<string>())).Accepted);
     }
 
     [Fact]
