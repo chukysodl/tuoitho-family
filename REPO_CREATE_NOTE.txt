@@ -1,0 +1,5 @@
+Suggested GitHub repository name: tuoitho-family
+Suggested description: Free and open-source family device time, app and web management for children. Local-first, privacy-respecting.
+Suggested initial visibility while developing: private
+Later, switch to public when RC is ready.
+Do NOT initialize with README if uploading this prepared bundle into a brand-new repo.
