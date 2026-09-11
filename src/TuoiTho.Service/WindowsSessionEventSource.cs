@@ -10,6 +10,7 @@ namespace TuoiTho.Service;
 
 public sealed class WindowsSessionEventSource : ISessionEventSource, IDisposable
 {
+    private readonly IWindowsBootTimeProvider bootTimeProvider;
     private readonly IClock clock;
     private readonly Channel<SessionSnapshot> events = Channel.CreateUnbounded<SessionSnapshot>();
     private readonly IWindowsIdleTimeProvider idleTimeProvider;
@@ -27,12 +28,14 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, IDisposable
         IClock clock,
         IOptions<WindowsTimeTrackingOptions> options,
         IWindowsIdleTimeProvider idleTimeProvider,
+        IWindowsBootTimeProvider bootTimeProvider,
         IWindowsSessionStateProvider sessionStateProvider,
         IWindowsSessionNotificationSource notificationSource)
     {
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         ArgumentNullException.ThrowIfNull(options);
         this.idleTimeProvider = idleTimeProvider ?? throw new ArgumentNullException(nameof(idleTimeProvider));
+        this.bootTimeProvider = bootTimeProvider ?? throw new ArgumentNullException(nameof(bootTimeProvider));
         this.sessionStateProvider = sessionStateProvider ?? throw new ArgumentNullException(nameof(sessionStateProvider));
         this.notificationSource = notificationSource ?? throw new ArgumentNullException(nameof(notificationSource));
 
@@ -228,5 +231,5 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, IDisposable
         occurredAtUtc,
         GetBootStartedAtUtc());
 
-    private DateTimeOffset GetBootStartedAtUtc() => clock.UtcNow - TimeSpan.FromMilliseconds(Environment.TickCount64);
+    private DateTimeOffset GetBootStartedAtUtc() => bootTimeProvider.GetBootStartedAtUtc(clock.UtcNow);
 }

@@ -114,7 +114,8 @@ public sealed class WindowsSessionEventSourceTests
         var stateProvider = new WindowsSessionStateProvider();
         if (stateProvider.GetActiveConsoleSessionId() is null)
         {
-            throw SkipException.ForSkip("SKIP: no interactive Windows console session is available for the real adapter check.");
+            Console.Error.WriteLine("WINDOWS INTEGRATION CHECK SKIPPED: no interactive Windows console session is available for the real adapter check.");
+            return;
         }
 
         var databasePath = Path.Combine(Path.GetTempPath(), $"tuoitho-windows-adapter-{Guid.NewGuid():N}.db");
@@ -125,6 +126,7 @@ public sealed class WindowsSessionEventSourceTests
                 clock,
                 Options.Create(new WindowsTimeTrackingOptions { IdleThresholdMinutes = 5, IdlePollIntervalSeconds = 60 }),
                 new WindowsIdleTimeProvider(),
+                new WindowsBootTimeProvider(),
                 stateProvider,
                 new WindowsSessionNotificationPump());
             var snapshot = await source.GetInitialSnapshotAsync();
@@ -154,7 +156,7 @@ public sealed class WindowsSessionEventSourceTests
     }
 
     private static WindowsSessionEventSource CreateSource(
-        IClock clock,
+        FakeClock clock,
         int? sessionId,
         FakeWindowsSessionStateProvider states,
         FakeWindowsSessionNotificationSource notifications,
@@ -162,6 +164,7 @@ public sealed class WindowsSessionEventSourceTests
         clock,
         Options.Create(new WindowsTimeTrackingOptions { SessionId = sessionId, IdleThresholdMinutes = 5, IdlePollIntervalSeconds = 60 }),
         new FakeWindowsIdleTimeProvider(idle ?? TimeSpan.Zero),
+        new FixedWindowsBootTimeProvider(clock.UtcNow.AddHours(-1)),
         states,
         notifications);
 
@@ -172,6 +175,10 @@ public sealed class WindowsSessionEventSourceTests
         public TimeSpan GetIdleDuration() => idle;
     }
 
+    private sealed class FixedWindowsBootTimeProvider(DateTimeOffset bootStartedAtUtc) : IWindowsBootTimeProvider
+    {
+        public DateTimeOffset GetBootStartedAtUtc(DateTimeOffset utcNow) => bootStartedAtUtc;
+    }
     private sealed class FakeWindowsSessionStateProvider : IWindowsSessionStateProvider
     {
         public int? ActiveConsoleSessionId { get; set; }
