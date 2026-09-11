@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading.Channels;
 
 using Microsoft.Extensions.Options;
@@ -9,32 +8,40 @@ using TuoiTho.Core.Time;
 
 namespace TuoiTho.Service;
 
-public sealed class WindowsSessionEventSource : ISessionEventSource
+public sealed class WindowsSessionEventSource : ISessionEventSource, IDisposable
 {
-    private const uint NoActiveConsoleSession = uint.MaxValue;
     private readonly IClock clock;
     private readonly Channel<SessionSnapshot> events = Channel.CreateUnbounded<SessionSnapshot>();
     private readonly IWindowsIdleTimeProvider idleTimeProvider;
     private readonly TimeSpan idlePollInterval;
     private readonly TimeSpan idleThreshold;
+    private readonly IWindowsSessionNotificationSource notificationSource;
+    private readonly bool sessionIsConfigured;
+    private readonly IWindowsSessionStateProvider sessionStateProvider;
     private int trackedSessionId;
     private SessionActivityState currentState;
     private bool initialized;
+    private bool notificationsStarted;
 
     public WindowsSessionEventSource(
         IClock clock,
         IOptions<WindowsTimeTrackingOptions> options,
-        IWindowsIdleTimeProvider idleTimeProvider)
+        IWindowsIdleTimeProvider idleTimeProvider,
+        IWindowsSessionStateProvider sessionStateProvider,
+        IWindowsSessionNotificationSource notificationSource)
     {
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         ArgumentNullException.ThrowIfNull(options);
         this.idleTimeProvider = idleTimeProvider ?? throw new ArgumentNullException(nameof(idleTimeProvider));
+        this.sessionStateProvider = sessionStateProvider ?? throw new ArgumentNullException(nameof(sessionStateProvider));
+        this.notificationSource = notificationSource ?? throw new ArgumentNullException(nameof(notificationSource));
 
         var value = options.Value;
         value.Validate();
         idleThreshold = TimeSpan.FromMinutes(value.IdleThresholdMinutes);
         idlePollInterval = TimeSpan.FromSeconds(value.IdlePollIntervalSeconds);
-        trackedSessionId = value.SessionId ?? -1;
+        sessionIsConfigured = value.SessionId.HasValue;
+        trackedSessionId = value.SessionId ?? 0;
     }
 
     public Task<SessionSnapshot> GetInitialSnapshotAsync(CancellationToken cancellationToken = default)
@@ -45,17 +52,12 @@ public sealed class WindowsSessionEventSource : ISessionEventSource
             throw new InvalidOperationException("The Windows session event source has already been initialized.");
         }
 
-        if (trackedSessionId < 0)
+        if (!sessionIsConfigured)
         {
-            var activeConsoleSession = WTSGetActiveConsoleSessionId();
-            trackedSessionId = activeConsoleSession == NoActiveConsoleSession ? 0 : checked((int)activeConsoleSession);
+            trackedSessionId = sessionStateProvider.GetActiveConsoleSessionId() ?? 0;
         }
 
-        currentState = trackedSessionId == 0
-            ? SessionActivityState.LoggedOut
-            : idleTimeProvider.GetIdleDuration() >= idleThreshold
-                ? SessionActivityState.Idle
-                : SessionActivityState.Active;
+        currentState = GetCurrentState();
         initialized = true;
         return Task.FromResult(CreateSnapshot(currentState, clock.UtcNow));
     }
@@ -69,7 +71,7 @@ public sealed class WindowsSessionEventSource : ISessionEventSource
         }
 
         using var monitorCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        SystemEvents.SessionSwitch += OnSessionSwitch;
+        StartNotifications();
         var idleMonitor = MonitorIdleAsync(monitorCancellation.Token);
         try
         {
@@ -80,7 +82,6 @@ public sealed class WindowsSessionEventSource : ISessionEventSource
         }
         finally
         {
-            SystemEvents.SessionSwitch -= OnSessionSwitch;
             monitorCancellation.Cancel();
             try
             {
@@ -93,6 +94,32 @@ public sealed class WindowsSessionEventSource : ISessionEventSource
         }
     }
 
+    public void Dispose()
+    {
+        notificationSource.SessionChanged -= OnSessionSwitch;
+        notificationSource.Dispose();
+    }
+
+    private void StartNotifications()
+    {
+        if (notificationsStarted)
+        {
+            return;
+        }
+
+        notificationSource.SessionChanged += OnSessionSwitch;
+        try
+        {
+            notificationSource.Start();
+            notificationsStarted = true;
+        }
+        catch
+        {
+            notificationSource.SessionChanged -= OnSessionSwitch;
+            throw;
+        }
+    }
+
     private async Task MonitorIdleAsync(CancellationToken cancellationToken)
     {
         using var timer = new PeriodicTimer(idlePollInterval);
@@ -100,6 +127,12 @@ public sealed class WindowsSessionEventSource : ISessionEventSource
         {
             if (currentState is not (SessionActivityState.Active or SessionActivityState.Idle))
             {
+                continue;
+            }
+
+            if (GetCurrentState() == SessionActivityState.Locked)
+            {
+                Publish(SessionActivityState.Locked, clock.UtcNow);
                 continue;
             }
 
@@ -116,32 +149,66 @@ public sealed class WindowsSessionEventSource : ISessionEventSource
         }
     }
 
-    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs eventArgs)
+    private void OnSessionSwitch(object? sender, WindowsSessionNotification notification)
     {
-        if (trackedSessionId == 0 && currentState == SessionActivityState.LoggedOut
-            && eventArgs.Reason == SessionSwitchReason.SessionLogon)
+        if (trackedSessionId == 0)
         {
-            var activeConsoleSession = WTSGetActiveConsoleSessionId();
-            if (activeConsoleSession != NoActiveConsoleSession)
+            if (!sessionIsConfigured
+                && notification.Reason is SessionSwitchReason.SessionLogon or SessionSwitchReason.ConsoleConnect
+                && sessionStateProvider.GetActiveConsoleSessionId() == notification.SessionId)
             {
-                trackedSessionId = checked((int)activeConsoleSession);
+                trackedSessionId = notification.SessionId;
+                Publish(GetCurrentState(), clock.UtcNow);
             }
+
+            return;
         }
 
-        var nextState = eventArgs.Reason switch
+        if (notification.SessionId != trackedSessionId)
         {
-            SessionSwitchReason.SessionLock => SessionActivityState.Locked,
-            SessionSwitchReason.SessionLogoff => SessionActivityState.LoggedOut,
-            SessionSwitchReason.SessionUnlock => SessionActivityState.Active,
-            SessionSwitchReason.SessionLogon => SessionActivityState.Active,
-            SessionSwitchReason.ConsoleConnect => SessionActivityState.Active,
-            SessionSwitchReason.RemoteConnect => SessionActivityState.Active,
-            SessionSwitchReason.ConsoleDisconnect => SessionActivityState.Locked,
-            SessionSwitchReason.RemoteDisconnect => SessionActivityState.Locked,
-            _ => currentState
-        };
+            return;
+        }
 
-        Publish(nextState, clock.UtcNow);
+        var occurredAtUtc = clock.UtcNow;
+        switch (notification.Reason)
+        {
+            case SessionSwitchReason.SessionLogoff:
+                Publish(SessionActivityState.LoggedOut, occurredAtUtc);
+                if (!sessionIsConfigured)
+                {
+                    trackedSessionId = 0;
+                }
+
+                break;
+            case SessionSwitchReason.SessionLock:
+            case SessionSwitchReason.ConsoleDisconnect:
+            case SessionSwitchReason.RemoteDisconnect:
+                Publish(SessionActivityState.Locked, occurredAtUtc);
+                break;
+            case SessionSwitchReason.SessionUnlock:
+            case SessionSwitchReason.SessionLogon:
+            case SessionSwitchReason.ConsoleConnect:
+            case SessionSwitchReason.RemoteConnect:
+                Publish(GetCurrentState(), occurredAtUtc);
+                break;
+        }
+    }
+
+    private SessionActivityState GetCurrentState()
+    {
+        if (trackedSessionId == 0)
+        {
+            return SessionActivityState.LoggedOut;
+        }
+
+        return sessionStateProvider.GetSessionState(trackedSessionId) switch
+        {
+            WindowsSessionState.LoggedOut => SessionActivityState.LoggedOut,
+            WindowsSessionState.Locked => SessionActivityState.Locked,
+            _ => idleTimeProvider.GetIdleDuration() >= idleThreshold
+                ? SessionActivityState.Idle
+                : SessionActivityState.Active
+        };
     }
 
     private void Publish(SessionActivityState nextState, DateTimeOffset occurredAtUtc)
@@ -162,7 +229,4 @@ public sealed class WindowsSessionEventSource : ISessionEventSource
         GetBootStartedAtUtc());
 
     private DateTimeOffset GetBootStartedAtUtc() => clock.UtcNow - TimeSpan.FromMilliseconds(Environment.TickCount64);
-
-    [DllImport("kernel32.dll")]
-    private static extern uint WTSGetActiveConsoleSessionId();
 }

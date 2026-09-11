@@ -30,6 +30,8 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<SqliteDatabase>(_ => new SqliteDatabase(GetDatabasePath()));
 builder.Services.AddSingleton<ITimeUsageStore, SqliteTimeUsageStore>();
 builder.Services.AddSingleton<IWindowsIdleTimeProvider, WindowsIdleTimeProvider>();
+builder.Services.AddSingleton<IWindowsSessionStateProvider, WindowsSessionStateProvider>();
+builder.Services.AddSingleton<IWindowsSessionNotificationSource, WindowsSessionNotificationPump>();
 builder.Services.AddSingleton<WindowsSessionEventSource>();
 builder.Services.AddSingleton<SessionTimeEngine>(services =>
 {

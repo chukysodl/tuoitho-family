@@ -7,7 +7,7 @@ public interface IWindowsIdleTimeProvider
     TimeSpan GetIdleDuration();
 }
 
-internal sealed class WindowsIdleTimeProvider : IWindowsIdleTimeProvider
+public sealed class WindowsIdleTimeProvider : IWindowsIdleTimeProvider
 {
     public TimeSpan GetIdleDuration()
     {
