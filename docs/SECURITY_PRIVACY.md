@@ -40,3 +40,7 @@ Operational logs must be bounded/rotated and avoid personal content.
 ## Child warning pipe
 
 The local-only warning pipe allows only LocalSystem (the service) and the managed SessionAgent user SID. Session/profile values inside each JSON warning are validated as an additional boundary; no browsing or application content is sent. The automated ACL test verifies the descriptor and managed-session server creation; a LocalSystem-to-child-user handshake is not impersonated in-process.
+
+## Parent control pipe
+
+Parent actions use a separate local named pipe. Its ACL permits only configured Parent SIDs and LocalSystem; the Service obtains the caller SID from the pipe impersonation token and never trusts a SID in JSON. Profile and managed-session identifiers are still validated against the persisted policy. No Windows password is stored.

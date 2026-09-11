@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | TASK-001 | PASS | task/001-bootstrap | 3225628; Actions 34552234667 PASS | not required |
 | TASK-002 | PASS | task/002-time-engine | 6304c03; Actions 34574851490 PASS | not required |
-| TASK-003 | PENDING | task/003-device-time-policy | - | M1 |
+| TASK-003 | IN PROGRESS (Checkpoint C complete; M1 pending) | task/003-device-time-policy | pending push | M1 |
 | TASK-004 | PENDING | task/004-app-control | - | M2 |
 | TASK-005 | PENDING | task/005-parent-dashboard | - | M3 |
 | TASK-006 | PENDING | task/006-web-control | - | yes |

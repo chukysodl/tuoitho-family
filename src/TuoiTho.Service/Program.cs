@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 
 using TuoiTho.Core.Time;
+using TuoiTho.Core.Policy;
 using TuoiTho.Service;
 using TuoiTho.Storage;
 
@@ -29,6 +30,12 @@ builder.Services.Configure<WindowsTimeTrackingOptions>(
 builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddSingleton<SqliteDatabase>(_ => new SqliteDatabase(GetDatabasePath()));
 builder.Services.AddSingleton<ITimeUsageStore, SqliteTimeUsageStore>();
+builder.Services.AddSingleton<IDeviceTimePolicyStore, SqliteDeviceTimePolicyStore>();
+builder.Services.Configure<ParentControlOptions>(builder.Configuration.GetSection(ParentControlOptions.SectionName));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<ParentControlService>();
+builder.Services.AddSingleton<IManagedSessionNativeApi, WindowsManagedSessionNativeApi>();
+builder.Services.AddSingleton<SafeChildSessionEnforcer>();
 builder.Services.AddSingleton<IWindowsIdleTimeProvider, WindowsIdleTimeProvider>();
 builder.Services.AddSingleton<IWindowsBootTimeProvider, WindowsBootTimeProvider>();
 builder.Services.AddSingleton<IWindowsSessionStateProvider, WindowsSessionStateProvider>();
@@ -44,6 +51,7 @@ builder.Services.AddSingleton<SessionTimeEngine>(services =>
         options.ProfileId);
 });
 builder.Services.AddHostedService<Worker>();
+builder.Services.AddHostedService<ParentControlListener>();
 
 using var host = builder.Build();
 host.Run();

@@ -10,6 +10,7 @@ public sealed record DeviceTimePolicy(
     string ProfileId, int ManagedSessionId, int DailyQuotaMinutes, IReadOnlyList<AllowedUsageWindow> Windows,
     IReadOnlyList<int> WarningThresholdMinutes, bool ParentLock, bool ParentOverride, bool TestMode)
 {
+    public string? ManagedUserSid { get; init; }
     public static readonly int[] DefaultWarnings = [15, 5, 1];
 }
 public sealed record PolicyDecision(bool Allowed, AccessDenyReason Reason, int RemainingMinutes, IReadOnlyList<int> Warnings);
