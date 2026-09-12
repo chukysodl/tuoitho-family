@@ -42,9 +42,9 @@ builder.Services.AddSingleton<IPolicyWarningPublisher, LocalPolicyWarningPublish
 builder.Services.AddSingleton<DevicePolicyCoordinator>();
 builder.Services.AddSingleton<IManagedSessionNativeApi, WindowsManagedSessionNativeApi>();
 builder.Services.AddSingleton<SafeChildSessionEnforcer>();
-builder.Services.AddSingleton<IWindowsIdleTimeProvider, WindowsIdleTimeProvider>();
+builder.Services.AddSingleton<IWindowsSessionActivityProvider, WtsSessionActivityProvider>();
 builder.Services.AddSingleton<IWindowsBootTimeProvider, WindowsBootTimeProvider>();
-builder.Services.AddSingleton<IWindowsSessionStateProvider, WindowsSessionStateProvider>();
+
 builder.Services.AddSingleton<IWindowsSessionNotificationSource, WindowsSessionNotificationPump>();
 builder.Services.AddSingleton<WindowsSessionEventSource>();
 builder.Services.AddSingleton<SessionTimeEngine>(services =>

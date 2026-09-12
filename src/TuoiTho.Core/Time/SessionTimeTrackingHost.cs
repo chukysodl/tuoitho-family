@@ -15,10 +15,16 @@ public sealed class SessionTimeTrackingHost
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        var initialSnapshot = await eventSource.GetInitialSnapshotAsync(cancellationToken);
-        await engine.InitializeAsync(initialSnapshot, cancellationToken);
+        var lifecycle = eventSource as ISessionEventSourceLifecycle;
         try
         {
+            if (lifecycle is not null)
+            {
+                await lifecycle.StartAsync(cancellationToken);
+            }
+
+            var initialSnapshot = await eventSource.GetInitialSnapshotAsync(cancellationToken);
+            await engine.InitializeAsync(initialSnapshot, cancellationToken);
             await foreach (var snapshot in eventSource.ReadEventsAsync(cancellationToken))
             {
                 if (await engine.ApplyObservationAsync(snapshot, cancellationToken) == TimeEngineApplyResult.Applied)
@@ -29,6 +35,11 @@ public sealed class SessionTimeTrackingHost
         }
         finally
         {
+            if (lifecycle is not null)
+            {
+                await lifecycle.StopAsync();
+            }
+
             await engine.StopAsync(CancellationToken.None);
         }
     }
