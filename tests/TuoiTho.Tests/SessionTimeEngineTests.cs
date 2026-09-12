@@ -1,4 +1,5 @@
 using TuoiTho.Core.Time;
+using TuoiTho.Core.Policy;
 
 namespace TuoiTho.Tests;
 
@@ -184,6 +185,49 @@ public sealed class SessionTimeEngineTests
         Assert.Equal(TimeSpan.FromMinutes(30), await store.GetUsageAsync("child-1", new DateOnly(2026, 9, 11)));
     }
 
+    [Fact]
+    public async Task ActiveHeartbeatPersistsMoreThanOneMinuteOfContinuousUsage()
+    {
+        var start=Utc(2026,9,14,9,0);var clock=new FakeClock(start,TimeZoneInfo.Utc);var store=new FakeTimeUsageStore();using var engine=new SessionTimeEngine(store,clock,"child-1");
+        await engine.InitializeAsync(Snapshot(SessionActivityState.Active,start));
+        await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddSeconds(70)));
+        Assert.True((await store.GetUsageAsync("child-1",new DateOnly(2026,9,14)))>TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task ContinuousActiveHeartbeatsExhaustThreeMinuteQuotaAndNotifyHost()
+    {
+        var start=Utc(2026,9,14,9,0);var clock=new FakeClock(start,TimeZoneInfo.Utc);var store=new FakeTimeUsageStore();using var engine=new SessionTimeEngine(store,clock,"child-1");var signalled=0;
+        var host=new SessionTimeTrackingHost(engine,new FakeSessionEventSource(Snapshot(SessionActivityState.Active,start),[Snapshot(SessionActivityState.Active,start.AddMinutes(3))]),()=>signalled++);
+        await host.RunAsync();
+        var policy=new DeviceTimePolicy("child-1",1,3,[new AllowedUsageWindow(DayOfWeek.Monday,new(0,0),new(23,59))],DeviceTimePolicy.DefaultWarnings,false,false,true);
+        Assert.False(new DeviceTimePolicyEngine(clock).Evaluate(policy,await store.GetUsageAsync("child-1",new DateOnly(2026,9,14)),[]).Allowed);Assert.Equal(1,signalled);
+    }
+
+    [Fact]
+    public async Task IdleAndLockedIntervalsAfterHeartbeatsDoNotAccumulate()
+    {
+        var start=Utc(2026,9,14,9,0);var clock=new FakeClock(start,TimeZoneInfo.Utc);var store=new FakeTimeUsageStore();using var engine=new SessionTimeEngine(store,clock,"child-1");
+        await engine.InitializeAsync(Snapshot(SessionActivityState.Active,start));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddMinutes(1)));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Idle,start.AddMinutes(1)));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Locked,start.AddMinutes(11)));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddMinutes(21)));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddMinutes(22)));
+        Assert.Equal(TimeSpan.FromMinutes(2),await store.GetUsageAsync("child-1",new DateOnly(2026,9,14)));
+    }
+
+    [Fact]
+    public async Task HeartbeatThenIdleBoundaryDoesNotDoubleCount()
+    {
+        var start=Utc(2026,9,14,9,0);var clock=new FakeClock(start,TimeZoneInfo.Utc);var store=new FakeTimeUsageStore();using var engine=new SessionTimeEngine(store,clock,"child-1");
+        await engine.InitializeAsync(Snapshot(SessionActivityState.Active,start));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddMinutes(1)));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Idle,start.AddMinutes(1)));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddMinutes(10)));await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddMinutes(11)));
+        Assert.Equal(TimeSpan.FromMinutes(2),await store.GetUsageAsync("child-1",new DateOnly(2026,9,14)));
+    }
+
+    [Fact]
+    public async Task RestartPreservesActiveUsageAlreadyCheckpointedByHeartbeat()
+    {
+        var start=Utc(2026,9,14,9,0);var clock=new FakeClock(start,TimeZoneInfo.Utc);var store=new FakeTimeUsageStore();
+        using(var first=new SessionTimeEngine(store,clock,"child-1")){await first.InitializeAsync(Snapshot(SessionActivityState.Active,start));await first.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddSeconds(70)));}
+        using(var restarted=new SessionTimeEngine(store,clock,"child-1")){await restarted.InitializeAsync(Snapshot(SessionActivityState.Active,start.AddSeconds(80)));await restarted.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddSeconds(140)));}
+        Assert.Equal(TimeSpan.FromSeconds(140),await store.GetUsageAsync("child-1",new DateOnly(2026,9,14)));
+    }
     private static SessionSnapshot Snapshot(
         SessionActivityState state,
         DateTimeOffset observedAtUtc,

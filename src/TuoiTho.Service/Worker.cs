@@ -3,12 +3,12 @@ using TuoiTho.Core.Time;
 using TuoiTho.Storage;
 
 namespace TuoiTho.Service;
-public sealed class Worker(SqliteDatabase database, SessionTimeEngine engine, WindowsSessionEventSource sessionEventSource, DevicePolicyCoordinator coordinator, IOptions<WindowsTimeTrackingOptions> options, ILogger<Worker> logger) : BackgroundService
+public sealed class Worker(SqliteDatabase database, SessionTimeEngine engine, WindowsSessionEventSource sessionEventSource, DevicePolicyCoordinator coordinator, IOptions<WindowsTimeTrackingOptions> options, PolicyChangeSignal changes, ILogger<Worker> logger) : BackgroundService
 {
  protected override async Task ExecuteAsync(CancellationToken stoppingToken)
  {
   TimeTrackingLog.Starting(logger); await database.InitializeAsync(stoppingToken);
-  try { var tracking=new SessionTimeTrackingHost(engine,sessionEventSource); await Task.WhenAll(tracking.RunAsync(stoppingToken),coordinator.RunAsync(options.Value.ProfileId,stoppingToken)); }
+  try { var tracking=new SessionTimeTrackingHost(engine,sessionEventSource,changes.Notify); await Task.WhenAll(tracking.RunAsync(stoppingToken),coordinator.RunAsync(options.Value.ProfileId,stoppingToken)); }
   catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested){} catch(Exception e){TimeTrackingLog.Failed(logger,e);throw;} finally {TimeTrackingLog.Stopped(logger);}
  }
 }

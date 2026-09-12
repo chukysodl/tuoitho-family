@@ -13,6 +13,13 @@ namespace TuoiTho.Tests;
 public sealed class WindowsSessionEventSourceTests
 {
     [Fact]
+    public async Task ActiveSessionEmitsMonotonicHeartbeatSnapshot()
+    {
+        var start=Utc(2026,9,12,9,0);var clock=new FakeClock(start,TimeZoneInfo.Utc);var states=new FakeWindowsSessionStateProvider { ActiveConsoleSessionId=7 };states.States[7]=WindowsSessionState.Active;
+        using var source=CreateSource(clock,7,states,new FakeWindowsSessionNotificationSource(),pollSeconds:1);await source.GetInitialSnapshotAsync();await using var enumerator=source.ReadEventsAsync().GetAsyncEnumerator();var next=enumerator.MoveNextAsync().AsTask();clock.UtcNow=start.AddSeconds(70);
+        Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(3)));Assert.Equal(SessionActivityState.Active,enumerator.Current.State);Assert.Equal(start.AddSeconds(70),enumerator.Current.OccurredAtUtc);
+    }
+    [Fact]
     public async Task ForeignSessionNotificationsDoNotChangeTrackedChildState()
     {
         var clock = new FakeClock(Utc(2026, 9, 12, 9, 0), TimeZoneInfo.Utc);
@@ -160,9 +167,10 @@ public sealed class WindowsSessionEventSourceTests
         int? sessionId,
         FakeWindowsSessionStateProvider states,
         FakeWindowsSessionNotificationSource notifications,
-        TimeSpan? idle = null) => new(
+        TimeSpan? idle = null,
+        int pollSeconds = 60) => new(
         clock,
-        Options.Create(new WindowsTimeTrackingOptions { SessionId = sessionId, IdleThresholdMinutes = 5, IdlePollIntervalSeconds = 60 }),
+        Options.Create(new WindowsTimeTrackingOptions { SessionId = sessionId, IdleThresholdMinutes = 5, IdlePollIntervalSeconds = pollSeconds }),
         new FakeWindowsIdleTimeProvider(idle ?? TimeSpan.Zero),
         new FixedWindowsBootTimeProvider(clock.UtcNow.AddHours(-1)),
         states,
