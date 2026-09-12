@@ -59,7 +59,7 @@ if (-not $SkipTests) {
     if ($LASTEXITCODE -ne 0) { throw "System Check time-accounting proof failed with exit code $LASTEXITCODE." }
 
     Write-Output "Running the real Windows adapter check. It skips only if Windows reports no interactive console session."
-    dotnet test .\TuoiTho.sln --configuration $Configuration --no-build --no-restore --filter "FullyQualifiedName~SystemCheckWindowsAdapterPersistsRealInitialSnapshot" --logger "console;verbosity=detailed"
+    dotnet test .\TuoiTho.sln --configuration $Configuration --no-build --no-restore --filter "FullyQualifiedName~SystemCheckWindowsAdapterPersistsRealInitialSnapshot|FullyQualifiedName~SystemCheckM1TestModeWarningSimulatedLockThenGrantAllows" --logger "console;verbosity=detailed"
     if ($LASTEXITCODE -ne 0) { throw "System Check Windows adapter proof failed with exit code $LASTEXITCODE." }
 }
 

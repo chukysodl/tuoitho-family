@@ -1,23 +1,6 @@
-var builder = WebApplication.CreateBuilder(args);
-
-builder.Logging.ClearProviders();
-builder.Logging.AddJsonConsole(options =>
-{
-    options.IncludeScopes = true;
-    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffzzz";
-});
-
-var app = builder.Build();
-
-app.MapGet("/", () => Results.Ok(new
-{
-    Component = "TuoiTho.Parent",
-    Status = "ready"
-}));
-
-app.MapGet("/health", () => Results.Ok(new
-{
-    Status = "ok"
-}));
-
+using TuoiTho.Core.Policy;
+using TuoiTho.Parent;
+var builder=WebApplication.CreateBuilder(args);builder.Logging.ClearProviders();builder.Logging.AddJsonConsole();builder.Services.AddSingleton<LocalParentControlClient>();var app=builder.Build();
+app.MapGet("/",()=>Results.Ok(new{Component="TuoiTho.Parent",Status="m1-local-ready"}));app.MapGet("/health",()=>Results.Ok(new{Status="ok"}));
+app.MapPost("/m1/{profileId}/{sessionId}/{action}",async(string profileId,int sessionId,string action,int? minutes,LocalParentControlClient client,CancellationToken token)=>{if(!Enum.TryParse<ParentControlAction>(action,true,out var parsed))return Results.BadRequest(new{error="Unknown action"});if(parsed==ParentControlAction.GrantMinutes&&minutes is null)return Results.BadRequest(new{error="minutes is required"});try{await client.SendAsync(new ParentControlCommand(parsed,profileId,sessionId,minutes),token);return Results.Ok(new{sent=true,action=parsed.ToString(),profileId,sessionId,minutes});}catch(Exception ex)when(ex is IOException or UnauthorizedAccessException or OperationCanceledException){return Results.Problem("Parent command was not accepted by the local service.",statusCode:503);}});
 app.Run();

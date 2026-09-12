@@ -1,17 +1,4 @@
 using Microsoft.Extensions.Logging.Console;
-
+using Microsoft.Extensions.Options;
 using TuoiTho.SessionAgent;
-
-var builder = Host.CreateApplicationBuilder(args);
-
-builder.Logging.ClearProviders();
-builder.Logging.AddJsonConsole(options =>
-{
-    options.IncludeScopes = true;
-    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffzzz";
-});
-
-builder.Services.AddHostedService<Worker>();
-
-using var host = builder.Build();
-host.Run();
+var builder=Host.CreateApplicationBuilder(args);builder.Logging.ClearProviders();builder.Logging.AddJsonConsole(options=>{options.IncludeScopes=true;options.TimestampFormat="yyyy-MM-ddTHH:mm:ss.fffzzz";});builder.Services.Configure<SessionAgentOptions>(builder.Configuration.GetSection(SessionAgentOptions.SectionName));builder.Services.AddSingleton<IChildWarningSink,DialogWarningSink>();builder.Services.AddSingleton<LocalWarningListener>(s=>new LocalWarningListener(s.GetRequiredService<IOptions<SessionAgentOptions>>().Value.ProfileId,Environment.ProcessId==0?0:System.Diagnostics.Process.GetCurrentProcess().SessionId,s.GetRequiredService<IChildWarningSink>(),s.GetRequiredService<ILogger<LocalWarningListener>>()));builder.Services.AddHostedService<Worker>();using var host=builder.Build();host.Run();

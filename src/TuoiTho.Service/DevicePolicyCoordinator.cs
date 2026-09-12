@@ -12,9 +12,9 @@ public sealed class PolicyChangeSignal
 }
 
 public interface IPolicyWarningPublisher { Task PublishAsync(SessionWarning warning, CancellationToken token = default); }
-public sealed class LocalPolicyWarningPublisher : IPolicyWarningPublisher
+public sealed class LocalPolicyWarningPublisher(LocalSessionWarningPublisher publisher) : IPolicyWarningPublisher
 {
-    public Task PublishAsync(SessionWarning warning, CancellationToken token = default) => LocalSessionWarningPublisher.PublishAsync(warning, token);
+    public Task PublishAsync(SessionWarning warning, CancellationToken token = default) => publisher.PublishAsync(warning, token);
 }
 
 public sealed class DevicePolicyCoordinator(
@@ -29,7 +29,7 @@ public sealed class DevicePolicyCoordinator(
         var used = await usage.GetUsageAsync(profileId, DateOnly.FromDateTime(localNow.DateTime), token);
         var grants = await policies.GetGrantsAsync(profileId, token);
         var decision = engine.Evaluate(policy, used, grants);
-        await publisher.PublishAsync(new SessionWarning(profileId, policy.ManagedSessionId, decision.RemainingMinutes, decision.Warnings.Count == 0 ? null : decision.Warnings[0], decision.Reason), token);
+        try { await publisher.PublishAsync(new SessionWarning(profileId, policy.ManagedSessionId, decision.RemainingMinutes, decision.Warnings.Count == 0 ? null : decision.Warnings[0], decision.Reason), token); } catch (Exception exception) when (exception is IOException or OperationCanceledException && !token.IsCancellationRequested) { PolicyCoordinatorLog.WarningUnavailable(); }
         return await enforcer.EnforceAsync(policy, policy.ManagedSessionId, decision, token);
     }
 
@@ -42,3 +42,4 @@ public sealed class DevicePolicyCoordinator(
         }
     }
 }
+internal static class PolicyCoordinatorLog { public static void WarningUnavailable() { } }

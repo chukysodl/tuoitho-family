@@ -36,6 +36,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PolicyChangeSignal>();
 builder.Services.AddSingleton<ParentControlService>();
 builder.Services.AddSingleton<DeviceTimePolicyEngine>();
+builder.Services.AddSingleton<LocalSessionWarningPublisher>();
 builder.Services.AddSingleton<IPolicyWarningPublisher, LocalPolicyWarningPublisher>();
 builder.Services.AddSingleton<DevicePolicyCoordinator>();
 builder.Services.AddSingleton<IManagedSessionNativeApi, WindowsManagedSessionNativeApi>();

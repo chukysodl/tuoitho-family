@@ -22,7 +22,7 @@ public sealed class CheckpointCControlAndEnforcementTests
             var store = new SqliteDeviceTimePolicyStore(database);
             var policy = Policy();
             await store.SaveAsync(policy);
-            var service = new ParentControlService(store, new FixedTimeProvider(), new PolicyChangeSignal());
+            var service = new ParentControlService(store, new FakeClock(new DateTimeOffset(2026,9,14,9,0,0,TimeSpan.Zero),TimeZoneInfo.Utc), new PolicyChangeSignal());
             var parents = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "S-1-5-21-parent" };
 
             Assert.True((await service.ExecuteAsync(new(ParentControlAction.GrantMinutes, "child", 7, 15), "S-1-5-21-parent", parents)).Accepted);
@@ -39,7 +39,7 @@ public sealed class CheckpointCControlAndEnforcementTests
     public async Task ChildOrSpoofedParentCommandFailsClosed()
     {
         var store = new InMemoryPolicyStore(Policy());
-        var service = new ParentControlService(store, new FixedTimeProvider(), new PolicyChangeSignal());
+        var service = new ParentControlService(store, new FakeClock(new DateTimeOffset(2026,9,14,9,0,0,TimeSpan.Zero),TimeZoneInfo.Utc), new PolicyChangeSignal());
         var result = await service.ExecuteAsync(new(ParentControlAction.SetParentLock, "child", 7), "S-1-5-21-child", new HashSet<string> { "S-1-5-21-parent" });
         Assert.False(result.Accepted);
         Assert.Equal("UNAUTHORIZED", result.Error);
@@ -53,7 +53,7 @@ public sealed class CheckpointCControlAndEnforcementTests
     public async Task OverrideAndClearingOverrideRestoreNormalPolicy()
     {
         var store = new InMemoryPolicyStore(Policy());
-        var service = new ParentControlService(store, new FixedTimeProvider(), new PolicyChangeSignal());
+        var service = new ParentControlService(store, new FakeClock(new DateTimeOffset(2026,9,14,9,0,0,TimeSpan.Zero),TimeZoneInfo.Utc), new PolicyChangeSignal());
         var parents = new HashSet<string> { "S-1-5-21-parent" };
         Assert.True((await service.ExecuteAsync(new(ParentControlAction.EmergencyOverride, "child", 7), "S-1-5-21-parent", parents)).Policy!.ParentOverride);
         var cleared = await service.ExecuteAsync(new(ParentControlAction.ClearOverride, "child", 7), "S-1-5-21-parent", parents);
