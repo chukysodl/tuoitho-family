@@ -1,0 +1,24 @@
+using TuoiTho.Core.Policy;
+namespace TuoiTho.Parent;
+
+public sealed class ParentControlForm:Form
+{
+ private readonly ParentDesktopController controller; private readonly Dictionary<string,Label> values=[]; private readonly Label message=new(){AutoSize=true,Font=new Font("Segoe UI",11,FontStyle.Bold),Padding=new Padding(8)};
+ public ParentControlForm(ParentDesktopController controller)
+ {
+  this.controller=controller;Text="Tuổi Thơ – Điều khiển phụ huynh (M1)";StartPosition=FormStartPosition.CenterScreen;MinimumSize=new Size(720,560);Font=new Font("Segoe UI",10);
+  var root=new TableLayoutPanel{Dock=DockStyle.Fill,Padding=new Padding(20),ColumnCount=2,AutoScroll=true};root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,45));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,55));Controls.Add(root);
+  root.Controls.Add(new Label{Text="Tuổi Thơ – Điều khiển phụ huynh",AutoSize=true,Font=new Font("Segoe UI",16,FontStyle.Bold)},0,0);root.SetColumnSpan(root.GetControlFromPosition(0,0)!,2);
+  foreach(var item in new[]{("Hồ sơ","Profile"),("Phiên Windows","Session"),("Chế độ an toàn","TestMode"),("Đã dùng hôm nay","Used"),("Hạn mức mỗi ngày","Quota"),("Phút cộng thêm","Grants"),("Còn lại","Remaining"),("Trạng thái","State")}) AddStatus(root,item.Item1,item.Item2);
+  root.Controls.Add(message,0,9);root.SetColumnSpan(message,2);
+  var buttons=new FlowLayoutPanel{AutoSize=true,Dock=DockStyle.Fill,Padding=new Padding(0,10,0,0)};root.Controls.Add(buttons,0,10);root.SetColumnSpan(buttons,2);
+  AddButton(buttons,"Làm mới trạng thái",async()=>await RefreshAsync()); AddButton(buttons,"+15 phút",()=>RunAsync(ParentControlAction.GrantMinutes,15)); AddButton(buttons,"+30 phút",()=>RunAsync(ParentControlAction.GrantMinutes,30)); AddButton(buttons,"+60 phút",()=>RunAsync(ParentControlAction.GrantMinutes,60)); AddButton(buttons,"Cộng phút tùy chọn",CustomGrantAsync); AddButton(buttons,"Bật Override khẩn cấp",()=>RunAsync(ParentControlAction.EmergencyOverride)); AddButton(buttons,"Tắt Override",()=>RunAsync(ParentControlAction.ClearOverride)); AddButton(buttons,"Khóa bởi phụ huynh",()=>RunAsync(ParentControlAction.SetParentLock)); AddButton(buttons,"Bỏ khóa phụ huynh",()=>RunAsync(ParentControlAction.ClearParentLock)); AddButton(buttons,"Thoát",()=>{Close();return Task.CompletedTask;});
+  Shown+=async(_,_)=>await RefreshAsync();
+ }
+ private void AddStatus(TableLayoutPanel panel,string label,string key){var name=new Label{Text=label,AutoSize=true,Padding=new Padding(4)};var value=new Label{Text="—",AutoSize=true,Padding=new Padding(4),Font=new Font("Segoe UI",10,FontStyle.Bold)};values[key]=value;var row=panel.RowCount++;panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));panel.Controls.Add(name,0,row);panel.Controls.Add(value,1,row);}
+ private static void AddButton(FlowLayoutPanel panel,string label,Func<Task> action){var button=new Button{Text=label,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,MinimumSize=new Size(150,46),Margin=new Padding(5),UseVisualStyleBackColor=true};button.Click+=async(_,_)=>await action();panel.Controls.Add(button);}
+ private async Task CustomGrantAsync(){using var dialog=new Form{Text="Cộng phút tùy chọn",StartPosition=FormStartPosition.CenterParent,Size=new Size(330,155),FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false};var input=new NumericUpDown{Minimum=1,Maximum=1440,Value=15,Location=new Point(20,20),Width=130};var ok=new Button{Text="Cộng phút",DialogResult=DialogResult.OK,Location=new Point(170,18)};dialog.Controls.AddRange([new Label{Text="Số phút:",Location=new Point(20,0),AutoSize=true},input,ok]);dialog.AcceptButton=ok;if(dialog.ShowDialog(this)==DialogResult.OK)await RunAsync(ParentControlAction.GrantMinutes,(int)input.Value);}
+ private async Task RunAsync(ParentControlAction action,int? minutes=null){await DisplayAsync(await controller.SendAsync(action,minutes));}
+ private async Task RefreshAsync(){await DisplayAsync(await controller.RefreshAsync());}
+ private Task DisplayAsync(ParentUiResult result){message.Text=result.Message;message.ForeColor=result.Success?Color.DarkGreen:Color.Firebrick;if(result.Status is { } s){values["Profile"].Text=s.ProfileId;values["Session"].Text=s.ManagedSessionId.ToString(System.Globalization.CultureInfo.CurrentCulture);values["TestMode"].Text=s.TestMode?"BẬT (không khóa thật)":"TẮT";values["Used"].Text=$"{s.UsedMinutes} phút";values["Quota"].Text=$"{s.QuotaMinutes} phút";values["Grants"].Text=$"{s.GrantMinutes} phút";values["Remaining"].Text=$"{s.RemainingMinutes} phút";values["State"].Text=s.State;}return Task.CompletedTask;}
+}
