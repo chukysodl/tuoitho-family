@@ -104,7 +104,7 @@ public sealed class CheckpointCControlAndEnforcementTests
     public async Task MalformedParentPayloadFailsSafely()
     {
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("{bad"));
-        Assert.Null(await ParentControlListener.ReadCommandAsync(stream, CancellationToken.None));
+        Assert.Null(await ParentControlListener.ReadCommandAsync(new StreamReader(stream), CancellationToken.None));
     }
 
     [Fact]

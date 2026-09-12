@@ -1,16 +1,6 @@
-using System.IO.Pipes;
-using System.Text.Json;
-using TuoiTho.Core.Policy;
-
+using System.IO.Pipes;using System.Text.Json;using TuoiTho.Core.Policy;
 namespace TuoiTho.Parent;
-
-public sealed class LocalParentControlClient(string pipeName = "TuoiTho.ParentControl")
+public sealed class LocalParentControlClient(string pipeName="TuoiTho.ParentControl")
 {
-    public async Task SendAsync(ParentControlCommand command, CancellationToken cancellationToken = default)
-    {
-        using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
-        await pipe.ConnectAsync(1000, cancellationToken);
-        await JsonSerializer.SerializeAsync(pipe, command, cancellationToken: cancellationToken);
-        await pipe.FlushAsync(cancellationToken);
-    }
+ public async Task<ParentControlResult> SendAsync(ParentControlCommand command,CancellationToken token=default){using var pipe=new NamedPipeClientStream(".",pipeName,PipeDirection.InOut,PipeOptions.Asynchronous);await pipe.ConnectAsync(1000,token);using var writer=new StreamWriter(pipe,leaveOpen:true){AutoFlush=true};await writer.WriteLineAsync(JsonSerializer.Serialize(command));using var reader=new StreamReader(pipe,leaveOpen:true);var line=await reader.ReadLineAsync(token);return string.IsNullOrWhiteSpace(line)?new(false,"EMPTY_RESPONSE"):JsonSerializer.Deserialize<ParentControlResult>(line)??new(false,"MALFORMED_RESPONSE");}
 }

@@ -32,6 +32,7 @@ builder.Services.AddSingleton<SqliteDatabase>(_ => new SqliteDatabase(GetDatabas
 builder.Services.AddSingleton<ITimeUsageStore, SqliteTimeUsageStore>();
 builder.Services.AddSingleton<IDeviceTimePolicyStore, SqliteDeviceTimePolicyStore>();
 builder.Services.Configure<ParentControlOptions>(builder.Configuration.GetSection(ParentControlOptions.SectionName));
+builder.Services.Configure<M1BootstrapOptions>(builder.Configuration.GetSection(M1BootstrapOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PolicyChangeSignal>();
 builder.Services.AddSingleton<ParentControlService>();
@@ -55,6 +56,7 @@ builder.Services.AddSingleton<SessionTimeEngine>(services =>
         services.GetRequiredService<IClock>(),
         options.ProfileId);
 });
+builder.Services.AddHostedService<M1Bootstrapper>();
 builder.Services.AddHostedService<Worker>();
 builder.Services.AddHostedService<ParentControlListener>();
 

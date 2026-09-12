@@ -1,9 +1,10 @@
-# M1 TestMode-only guide
+# M1 tester package (safe TestMode only)
 
-1. Keep `TestMode: true`. Do **not** disable it for M1.
-2. Set a 3–5 minute quota and a schedule covering the current time for the managed child profile/session.
-3. Start TuoiTho.Service and TuoiTho.SessionAgent in that child session; verify the child receives warning/status messages.
-4. When quota expires, verify `SIMULATED_LOCK` in Service logs. The Windows session must remain usable.
-5. In the local Parent harness, send `POST /m1/{profileId}/{sessionId}/GrantMinutes?minutes=15` (or 30/60/custom). Verify the status becomes allowed.
-6. Restart the Service, then verify used time remains and the quota has not reset. Rebooting must not grant extra active time.
-7. For recovery, keep TestMode enabled and use EmergencyOverride or a +15 grant through the Parent harness. Never test on an administrator, parent, or unrelated session.
+1. Open PowerShell in the repository and run `./scripts/M1-START.ps1`.
+2. The script detects your Windows SID and session, creates a temporary 3-minute M1 policy, forces `TestMode=true`, starts Service and SessionAgent, then opens the Parent CLI.
+3. Use the PC for about three minutes. Confirm the child-facing warning and `SIMULATED_LOCK`; Windows remains usable.
+4. In Parent CLI choose `1` for +15 minutes. It must display `SUCCESS` and `ALLOWED` status.
+5. Restart the Service if desired, then confirm the used time remains recorded.
+6. Exit the Parent CLI and run `./scripts/M1-STOP.ps1`.
+
+Do not disable TestMode. The scripts never disconnect, log off, restart, or shut down Windows.

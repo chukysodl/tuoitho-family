@@ -23,5 +23,6 @@
     <ProjectReference Include="..\..\src\TuoiTho.Storage\TuoiTho.Storage.csproj" />
     <ProjectReference Include="..\..\src\TuoiTho.Service\TuoiTho.Service.csproj" />
     <ProjectReference Include="..\..\src\TuoiTho.SessionAgent\TuoiTho.SessionAgent.csproj" />
+    <ProjectReference Include="..\..\src\TuoiTho.Parent\TuoiTho.Parent.csproj" />
   </ItemGroup>
 </Project>
