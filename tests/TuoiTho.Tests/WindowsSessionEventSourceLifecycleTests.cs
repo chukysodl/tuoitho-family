@@ -90,6 +90,7 @@ public sealed class WindowsSessionEventSourceLifecycleTests
         Assert.Equal(SessionActivityState.LoggedOut, result.State);
         Assert.Null(result.IdleDuration);
         Assert.Null(result.Win32Error);
+        Assert.False(result.QuerySucceeded);
     }
 
     private static WindowsSessionEventSource CreateSource(

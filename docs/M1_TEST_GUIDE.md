@@ -8,3 +8,8 @@
 6. When finished, close the Parent window and run `scripts\M1-STOP.cmd`.
 
 Do not disable TestMode. The `.cmd` launchers bypass script execution policy only for the temporary PowerShell process they start; they do not change the permanent Windows/PowerShell policy. M1 scripts never disconnect, log off, restart, or shut down Windows. The Parent window uses only the secured local named-pipe IPC; it has no web or cloud control path.
+
+
+## Activity validation status
+
+REAL_IDLE_MANUAL_VALIDATION_PENDING: SessionAgent GetLastInputInfo was proven on the real managed session (ACTIVE and input reset), but a clean 30-second idle interval must still be verified manually because the Codex execution environment itself generates input. TestMode remains required.

@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -18,6 +18,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuoiTho.Tests", "tests\TuoiTho.Tests\TuoiTho.Tests.csproj", "{30AAC689-0691-4A8C-804C-628CFE03D1F1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{07C2787E-EAC7-C090-1BA3-A61EC2A24D84}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TuoiTho.WtsDiagnostic", "tools\TuoiTho.WtsDiagnostic\TuoiTho.WtsDiagnostic.csproj", "{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -101,6 +105,18 @@ Global
 		{30AAC689-0691-4A8C-804C-628CFE03D1F1}.Release|x64.Build.0 = Release|Any CPU
 		{30AAC689-0691-4A8C-804C-628CFE03D1F1}.Release|x86.ActiveCfg = Release|Any CPU
 		{30AAC689-0691-4A8C-804C-628CFE03D1F1}.Release|x86.Build.0 = Release|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Debug|x64.Build.0 = Debug|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Debug|x86.Build.0 = Debug|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Release|x64.ActiveCfg = Release|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Release|x64.Build.0 = Release|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Release|x86.ActiveCfg = Release|Any CPU
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -112,5 +128,6 @@ Global
 		{1F4793C5-21B5-4EF3-8161-269D43A1D9A3} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{306FF8BC-2223-4A6E-A473-6DEA534D359A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{30AAC689-0691-4A8C-804C-628CFE03D1F1} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{35AF92C3-A112-4135-A9A5-1585A8CE1EDD} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 EndGlobal
