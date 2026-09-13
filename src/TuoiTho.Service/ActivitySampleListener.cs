@@ -11,6 +11,9 @@ namespace TuoiTho.Service;
 public sealed class ActivitySampleListener(
     SqliteDatabase database,
     IDeviceTimePolicyStore policies,
+    ITimeUsageStore usage,
+    IClock clock,
+    IWindowsSessionActivityProvider activityProvider,
     ActivitySampleCache cache,
     IOptions<WindowsTimeTrackingOptions> options,
     ILogger<ActivitySampleListener> logger) : BackgroundService
@@ -42,7 +45,12 @@ public sealed class ActivitySampleListener(
                 if (sample is null || callerSid != managedSid.Value || !cache.TryAccept(sample, policy.ProfileId, policy.ManagedSessionId))
                 {
                     ActivitySampleLog.Rejected(logger);
+                    continue;
                 }
+
+                var local = TimeZoneInfo.ConvertTime(clock.UtcNow, clock.LocalTimeZone);
+                var recordedToday = await usage.GetUsageAsync(policy.ProfileId, DateOnly.FromDateTime(local.DateTime), stoppingToken);
+                await M1ActivityTraceWriter.AppendAsync(policy, sample, activityProvider.GetActivity(policy.ManagedSessionId).State, recordedToday, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
             catch (Exception exception) { ActivitySampleLog.Failed(logger, exception); }

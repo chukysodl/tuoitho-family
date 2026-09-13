@@ -39,12 +39,17 @@ Console.WriteLine($"Win32Error: {activity.Win32Error?.ToString(System.Globalizat
 Console.WriteLine($"Diagnostic: {activity.Diagnostic ?? "None"}");
 try
 {
-    var agentIdleSeconds = new TuoiTho.SessionAgent.InteractiveActivitySampler().GetIdleSeconds();
+    using var sampler = new TuoiTho.SessionAgent.InteractiveActivitySampler();
+    sampler.Start();
+    var agentActivity = sampler.GetActivity();
     Console.WriteLine("SessionAgentConnected: direct interactive probe");
     Console.WriteLine($"ProfileId: {Environment.GetEnvironmentVariable("SessionAgent__ProfileId") ?? "local-child"}");
     Console.WriteLine($"AgentSessionId: {sessionId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "NONE"}");
-    Console.WriteLine($"AgentIdleSeconds: {agentIdleSeconds.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}");
-    Console.WriteLine($"ActivityState: {(agentIdleSeconds < 300 ? "ACTIVE" : "IDLE")}");
+    Console.WriteLine($"ActivitySource: {agentActivity.ActivitySource}");
+    Console.WriteLine($"DeviceIdleSeconds: {agentActivity.DeviceIdleSeconds?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? "N/A"}");
+    Console.WriteLine($"WindowsIdleSeconds: {agentActivity.WindowsIdleSeconds?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) ?? "N/A"}");
+    Console.WriteLine($"ActivityState: {(!agentActivity.RawInputAvailable ? "UNKNOWN" : agentActivity.DeviceIdleSeconds < 300 ? "ACTIVE" : "IDLE")}");
+    Console.WriteLine($"ActivityDiagnostic: {agentActivity.Diagnostic ?? "None"}");
     Console.WriteLine($"LastActivitySampleUtc: {DateTimeOffset.UtcNow:O}");
     Console.WriteLine("SampleAgeSeconds: 0.0");
 }

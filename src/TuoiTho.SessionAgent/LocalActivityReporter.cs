@@ -14,27 +14,42 @@ public sealed class LocalActivityReporter(
     {
         var settings = options.Value;
         var sessionId = System.Diagnostics.Process.GetCurrentProcess().SessionId;
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-        while (await timer.WaitForNextTickAsync(cancellationToken))
+        sampler.Start();
+        try
         {
-            try
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                var sample = new SessionActivitySample(settings.ProfileId, sessionId, DateTimeOffset.UtcNow, sampler.GetIdleSeconds());
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeout.CancelAfter(TimeSpan.FromSeconds(1));
-                using var pipe = new NamedPipeClientStream(".", "TuoiTho.Activity", PipeDirection.Out, PipeOptions.Asynchronous);
-                await pipe.ConnectAsync(timeout.Token);
-                using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
-                await writer.WriteLineAsync(JsonSerializer.Serialize(sample));
+                try
+                {
+                    var activity = sampler.GetActivity();
+                    var sample = new SessionActivitySample(
+                        settings.ProfileId,
+                        sessionId,
+                        DateTimeOffset.UtcNow,
+                        activity.DeviceIdleSeconds ?? 0,
+                        activity.RawInputAvailable,
+                        activity.WindowsIdleSeconds);
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    timeout.CancelAfter(TimeSpan.FromSeconds(1));
+                    using var pipe = new NamedPipeClientStream(".", "TuoiTho.Activity", PipeDirection.Out, PipeOptions.Asynchronous);
+                    await pipe.ConnectAsync(timeout.Token);
+                    using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+                    await writer.WriteLineAsync(JsonSerializer.Serialize(sample));
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OperationCanceledException or InvalidOperationException)
+                {
+                    ActivityReporterLog.Unavailable(logger, exception);
+                }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or OperationCanceledException or InvalidOperationException)
-            {
-                ActivityReporterLog.Unavailable(logger, exception);
-            }
+        }
+        finally
+        {
+            sampler.Dispose();
         }
     }
 }

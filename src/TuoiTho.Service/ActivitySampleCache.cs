@@ -10,7 +10,9 @@ public sealed class ActivitySampleCache(IClock clock)
 
     public bool TryAccept(SessionActivitySample candidate, string profileId, int sessionId)
     {
-        if (candidate.ProfileId != profileId || candidate.SessionId != sessionId || candidate.IdleSeconds < 0 || double.IsNaN(candidate.IdleSeconds) || double.IsInfinity(candidate.IdleSeconds))
+        if (candidate.ProfileId != profileId || candidate.SessionId != sessionId ||
+            candidate.IdleSeconds < 0 || double.IsNaN(candidate.IdleSeconds) || double.IsInfinity(candidate.IdleSeconds) ||
+            candidate.WindowsIdleSeconds is < 0 || double.IsNaN(candidate.WindowsIdleSeconds ?? 0) || double.IsInfinity(candidate.WindowsIdleSeconds ?? 0))
         {
             return false;
         }

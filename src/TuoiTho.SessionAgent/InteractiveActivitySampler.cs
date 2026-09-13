@@ -2,20 +2,57 @@ using System.Runtime.InteropServices;
 
 namespace TuoiTho.SessionAgent;
 
-public interface IInteractiveActivitySampler
+public sealed record InteractiveActivitySnapshot(bool RawInputAvailable, double? DeviceIdleSeconds, double? WindowsIdleSeconds, string? Diagnostic)
 {
-    double GetIdleSeconds();
+    public string ActivitySource => RawInputAvailable ? "RAW_INPUT" : "UNAVAILABLE";
 }
 
-/// <summary>Reads only elapsed idle time from the interactive SessionAgent desktop.</summary>
-public sealed class InteractiveActivitySampler : IInteractiveActivitySampler
+public interface IInteractiveActivitySampler : IDisposable
 {
-    public double GetIdleSeconds()
+    void Start();
+    InteractiveActivitySnapshot GetActivity();
+}
+
+public interface IWindowsIdleTimeDiagnostics
+{
+    double? GetIdleSeconds();
+}
+
+/// <summary>Samples only aggregate idle durations; Raw Input is authoritative for accounting.</summary>
+public sealed class InteractiveActivitySampler(
+    IRawInputActivityTracker rawInput,
+    IWindowsIdleTimeDiagnostics windowsIdle,
+    TimeProvider timeProvider) : IInteractiveActivitySampler
+{
+    public InteractiveActivitySampler() : this(new RawInputActivityTracker(), new WindowsIdleTimeDiagnostics(), TimeProvider.System) { }
+
+    public void Start() => rawInput.Start();
+
+    public InteractiveActivitySnapshot GetActivity()
+    {
+        var status = rawInput.GetStatus();
+        var windowsIdleSeconds = windowsIdle.GetIdleSeconds();
+        if (!status.IsAvailable || status.LastDeviceInputUtc is not { } lastInput)
+        {
+            return new(false, null, windowsIdleSeconds, status.Diagnostic ?? "Raw Input is unavailable.");
+        }
+
+        var deviceIdle = Math.Max(0, (timeProvider.GetUtcNow() - lastInput).TotalSeconds);
+        return new(true, deviceIdle, windowsIdleSeconds, null);
+    }
+
+    public void Dispose() => rawInput.Dispose();
+}
+
+/// <summary>Diagnostic-only GetLastInputInfo comparison; never used for accounting state.</summary>
+public sealed class WindowsIdleTimeDiagnostics : IWindowsIdleTimeDiagnostics
+{
+    public double? GetIdleSeconds()
     {
         var input = new LastInputInfo { Size = (uint)Marshal.SizeOf<LastInputInfo>() };
         if (!GetLastInputInfo(ref input))
         {
-            throw new InvalidOperationException($"GetLastInputInfo failed: {Marshal.GetLastWin32Error()}.");
+            return null;
         }
 
         var elapsedMilliseconds = unchecked((uint)Environment.TickCount) - input.TickCount;

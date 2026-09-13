@@ -12,6 +12,8 @@ $env:SessionAgent__M1TestMode='true';$env:SessionAgent__M1WarningPublisherSid=$s
 $env:ParentControl__AllowedParentSids__0=$sid
 $env:M1Bootstrap__Enabled='true';$env:M1Bootstrap__ProfileId='m1-child';$env:M1Bootstrap__ManagedSessionId=$session;$env:M1Bootstrap__ManagedUserSid=$sid;$env:M1Bootstrap__QuotaMinutes='3'
 $env:M1_PROFILE_ID='m1-child';$env:M1_SESSION_ID=$session
+$activityTrace=Join-Path $env:TEMP 'tuoitho-m1-activity.csv'
+'Timestamp,RawInputIdleSeconds,WindowsIdleSeconds,ActivityState,RecordedTodaySeconds'|Set-Content $activityTrace
 
 & dotnet build (Join-Path $root 'TuoiTho.sln') --configuration Release
 if($LASTEXITCODE -ne 0){Write-Output 'M1 START FAIL: Release build failed.';exit $LASTEXITCODE}

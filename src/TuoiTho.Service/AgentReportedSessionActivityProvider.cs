@@ -3,7 +3,7 @@ using TuoiTho.Core.Time;
 
 namespace TuoiTho.Service;
 
-// WTS proves that the configured session is present/connected. Input activity is
+// WTS proves that the configured session is present/connected. Raw Input activity is
 // authoritative only when supplied by the authenticated SessionAgent in that session.
 public sealed class AgentReportedSessionActivityProvider : IWindowsSessionActivityProvider
 {
@@ -38,7 +38,12 @@ public sealed class AgentReportedSessionActivityProvider : IWindowsSessionActivi
 
         if (cache.GetFresh(profileId, sessionId, MaximumSampleAge) is not { } sample)
         {
-            return new(SessionActivityState.Unknown, null, null, null, session.Win32Error, "No fresh authenticated SessionAgent activity sample.", session.QuerySucceeded, session.Raw);
+            return new(SessionActivityState.Unknown, null, null, null, session.Win32Error, "No fresh authenticated SessionAgent Raw Input sample.", session.QuerySucceeded, session.Raw);
+        }
+
+        if (!sample.RawInputAvailable)
+        {
+            return new(SessionActivityState.Unknown, null, null, null, session.Win32Error, "SessionAgent Raw Input is unavailable; activity is not counted.", session.QuerySucceeded, session.Raw);
         }
 
         var idle = TimeSpan.FromSeconds(sample.IdleSeconds);
