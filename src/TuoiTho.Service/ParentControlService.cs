@@ -3,9 +3,41 @@ using TuoiTho.Core.Time;
 
 namespace TuoiTho.Service;
 
-public sealed class ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes, ActivitySampleCache? activityCache = null, WindowsSessionEventSource? sessionEventSource = null)
+public sealed class ParentControlService : IDisposable
 {
-    public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes) : this(store, new EmptyUsageStore(), clock, new DeviceTimePolicyEngine(clock), changes) { }
+    private readonly IDeviceTimePolicyStore store;
+    private readonly ITimeUsageStore usage;
+    private readonly IClock clock;
+    private readonly DeviceTimePolicyEngine engine;
+    private readonly PolicyChangeSignal changes;
+    private readonly ActivitySampleCache? activityCache;
+    private readonly WindowsSessionEventSource? sessionEventSource;
+    private readonly SessionTimeEngine? timeEngine;
+    private readonly SemaphoreSlim commandGate = new(1, 1);
+
+    public ParentControlService(
+        IDeviceTimePolicyStore store,
+        ITimeUsageStore usage,
+        IClock clock,
+        DeviceTimePolicyEngine engine,
+        PolicyChangeSignal changes,
+        ActivitySampleCache? activityCache = null,
+        WindowsSessionEventSource? sessionEventSource = null,
+        SessionTimeEngine? timeEngine = null)
+    {
+        this.store = store;
+        this.usage = usage;
+        this.clock = clock;
+        this.engine = engine;
+        this.changes = changes;
+        this.activityCache = activityCache;
+        this.sessionEventSource = sessionEventSource;
+        this.timeEngine = timeEngine;
+    }
+
+    public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes)
+        : this(store, new EmptyUsageStore(), clock, new DeviceTimePolicyEngine(clock), changes) { }
+
     private sealed class EmptyUsageStore : ITimeUsageStore
     {
         public Task<TimeTrackingCheckpoint?> LoadCheckpointAsync(string profileId, CancellationToken cancellationToken = default) => Task.FromResult<TimeTrackingCheckpoint?>(null);
@@ -16,38 +48,77 @@ public sealed class ParentControlService(IDeviceTimePolicyStore store, ITimeUsag
 
     public async Task<ParentControlResult> ExecuteAsync(ParentControlCommand command, string sid, IReadOnlySet<string> parents, CancellationToken token = default)
     {
-        if (string.IsNullOrWhiteSpace(sid) || (!parents.Contains(sid) && !string.Equals(sid, "S-1-5-18", StringComparison.OrdinalIgnoreCase))) return new(false, "UNAUTHORIZED");
-        if (string.IsNullOrWhiteSpace(command.ProfileId) || command.ManagedSessionId < 0) return new(false, "INVALID_COMMAND");
-        var policy = await store.LoadAsync(command.ProfileId, token);
-        if (policy is null || policy.ManagedSessionId != command.ManagedSessionId) return new(false, "PROFILE_OR_SESSION_MISMATCH");
-        if (command.Action == ParentControlAction.GetStatus) return new(true, null, policy, await StatusAsync(policy, token));
-        if (command.Action == ParentControlAction.ResetM1)
+        await commandGate.WaitAsync(token);
+        try
         {
-            if (!policy.TestMode || policy.ProfileId != "m1-child") return new(false, "M1_RESET_NOT_ALLOWED");
-            var date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, clock.LocalTimeZone).DateTime);
-            await usage.ResetUsageAsync(policy.ProfileId, date, token);
-            await store.ClearGrantsAsync(policy.ProfileId, token);
-            policy = policy with { DailyQuotaMinutes = 3, ParentOverride = false, ParentLock = false, TestMode = true };
-            await store.SaveAsync(policy, token);
-            if (sessionEventSource?.ReinitializeForM1Reset() is { } snapshot)
+            if (string.IsNullOrWhiteSpace(sid) || (!parents.Contains(sid) && !string.Equals(sid, "S-1-5-18", StringComparison.OrdinalIgnoreCase))) return new(false, "UNAUTHORIZED");
+            if (string.IsNullOrWhiteSpace(command.ProfileId) || command.ManagedSessionId < 0) return new(false, "INVALID_COMMAND");
+            var policy = await store.LoadAsync(command.ProfileId, token);
+            if (policy is null || policy.ManagedSessionId != command.ManagedSessionId) return new(false, "PROFILE_OR_SESSION_MISMATCH");
+            if (command.Action == ParentControlAction.GetStatus) return new(true, null, policy, await StatusAsync(policy, token));
+            if (command.Action == ParentControlAction.ResetM1)
             {
-                await usage.SaveAsync(policy.ProfileId, new TimeTrackingCheckpoint(snapshot.SessionId, snapshot.State, snapshot.OccurredAtUtc, snapshot.BootStartedAtUtc), [], token);
+                if (!policy.TestMode || policy.ProfileId != "m1-child") return new(false, "M1_RESET_NOT_ALLOWED");
+                var date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, clock.LocalTimeZone).DateTime);
+                await ResetM1UsageAndRuntimeAsync(policy.ProfileId, date, token);
+                await store.ClearGrantsAsync(policy.ProfileId, token);
+                policy = policy with { DailyQuotaMinutes = 3, ParentOverride = false, ParentLock = false, TestMode = true };
+                await store.SaveAsync(policy, token);
+                changes.Notify();
+                return new(true, null, policy, await StatusAsync(policy, token));
             }
-            changes.Notify();
-            return new(true, null, policy, await StatusAsync(policy, token));
+            switch (command.Action)
+            {
+                case ParentControlAction.GrantMinutes:
+                    if (command.Minutes is null or <= 0 or > 1440) return new(false, "INVALID_GRANT");
+                    await store.AddGrantAsync(policy.ProfileId, new TemporaryGrant(command.Minutes.Value, EndOfLocalDay(clock.UtcNow, clock.LocalTimeZone)), token); break;
+                case ParentControlAction.EmergencyOverride: policy = policy with { ParentOverride = true, ParentLock = false }; break;
+                case ParentControlAction.ClearOverride: policy = policy with { ParentOverride = false }; break;
+                case ParentControlAction.SetParentLock: policy = policy with { ParentLock = true, ParentOverride = false }; break;
+                case ParentControlAction.ClearParentLock: policy = policy with { ParentLock = false }; break;
+                default: return new(false, "UNKNOWN_ACTION");
+            }
+            await store.SaveAsync(policy, token); changes.Notify(); return new(true, null, policy, await StatusAsync(policy, token));
         }
-        switch (command.Action)
+        finally
         {
-            case ParentControlAction.GrantMinutes:
-                if (command.Minutes is null or <= 0 or > 1440) return new(false, "INVALID_GRANT");
-                await store.AddGrantAsync(policy.ProfileId, new TemporaryGrant(command.Minutes.Value, EndOfLocalDay(clock.UtcNow, clock.LocalTimeZone)), token); break;
-            case ParentControlAction.EmergencyOverride: policy = policy with { ParentOverride = true, ParentLock = false }; break;
-            case ParentControlAction.ClearOverride: policy = policy with { ParentOverride = false }; break;
-            case ParentControlAction.SetParentLock: policy = policy with { ParentLock = true, ParentOverride = false }; break;
-            case ParentControlAction.ClearParentLock: policy = policy with { ParentLock = false }; break;
-            default: return new(false, "UNKNOWN_ACTION");
+            commandGate.Release();
         }
-        await store.SaveAsync(policy, token); changes.Notify(); return new(true, null, policy, await StatusAsync(policy, token));
+    }
+
+    private async Task ResetM1UsageAndRuntimeAsync(string profileId, DateOnly date, CancellationToken token)
+    {
+        if (timeEngine is not null && await timeEngine.ResetForM1Async(date, () => sessionEventSource?.ReinitializeForM1Reset(), token))
+        {
+            return;
+        }
+
+        // The tracking host is not running yet. Advance the persisted baseline now so startup cannot recover a pre-reset interval.
+        var snapshot = sessionEventSource?.ReinitializeForM1Reset();
+        var persistedCheckpoint = snapshot is null
+            ? await usage.LoadCheckpointAsync(profileId, token)
+            : null;
+        if (snapshot is not null)
+        {
+            await usage.ResetUsageAndSaveCheckpointAsync(profileId, date, new TimeTrackingCheckpoint(
+                snapshot.SessionId,
+                snapshot.State,
+                snapshot.OccurredAtUtc,
+                snapshot.BootStartedAtUtc), token);
+        }
+        else if (persistedCheckpoint is not null)
+        {
+            var baseline = new TimeTrackingCheckpoint(
+                persistedCheckpoint.SessionId,
+                persistedCheckpoint.State,
+                clock.UtcNow,
+                persistedCheckpoint.BootStartedAtUtc);
+            await usage.ResetUsageAndSaveCheckpointAsync(profileId, date, baseline, token);
+        }
+        else
+        {
+            await usage.ResetUsageAsync(profileId, date, token);
+        }
     }
 
     private async Task<ParentControlStatus> StatusAsync(DeviceTimePolicy policy, CancellationToken token)
@@ -67,6 +138,8 @@ public sealed class ParentControlService(IDeviceTimePolicyStore store, ITimeUsag
         var remainingSeconds = Math.Max(0, allowedSeconds - used.TotalSeconds);
         return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds);
     }
+
+    public void Dispose() => commandGate.Dispose();
 
     private static DateTimeOffset EndOfLocalDay(DateTimeOffset utc, TimeZoneInfo zone) { var local = TimeZoneInfo.ConvertTime(utc, zone); var next = local.Date.AddDays(1); return new DateTimeOffset(next, zone.GetUtcOffset(next)).ToUniversalTime(); }
 }

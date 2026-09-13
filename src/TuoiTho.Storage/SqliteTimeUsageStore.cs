@@ -114,6 +114,47 @@ public sealed class SqliteTimeUsageStore : ITimeUsageStore
         command.Parameters.AddWithValue("$usage_date", usageDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
+
+    public async Task ResetUsageAndSaveCheckpointAsync(
+        string profileId,
+        DateOnly usageDate,
+        TimeTrackingCheckpoint checkpoint,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateProfileId(profileId);
+        ArgumentNullException.ThrowIfNull(checkpoint);
+
+        await using var connection = await database.OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+
+        command.CommandText = "DELETE FROM time_usage_daily WHERE profile_id = $profile_id AND usage_date = $usage_date;";
+        command.Parameters.AddWithValue("$profile_id", profileId);
+        command.Parameters.AddWithValue("$usage_date", usageDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        var normalizedCheckpoint = checkpoint.NormalizeToUtc();
+        command.Parameters.Clear();
+        command.CommandText = """
+            INSERT INTO time_tracking_checkpoints (
+                profile_id, session_id, state, last_observed_at_utc, boot_started_at_utc)
+            VALUES (
+                $profile_id, $session_id, $state, $last_observed_at_utc, $boot_started_at_utc)
+            ON CONFLICT(profile_id) DO UPDATE SET
+                session_id = excluded.session_id,
+                state = excluded.state,
+                last_observed_at_utc = excluded.last_observed_at_utc,
+                boot_started_at_utc = excluded.boot_started_at_utc;
+            """;
+        command.Parameters.AddWithValue("$profile_id", profileId);
+        command.Parameters.AddWithValue("$session_id", normalizedCheckpoint.SessionId);
+        command.Parameters.AddWithValue("$state", normalizedCheckpoint.State.ToString());
+        command.Parameters.AddWithValue("$last_observed_at_utc", normalizedCheckpoint.LastObservedAtUtc.ToString("O", CultureInfo.InvariantCulture));
+        command.Parameters.AddWithValue("$boot_started_at_utc", normalizedCheckpoint.BootStartedAtUtc.ToString("O", CultureInfo.InvariantCulture));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
     public async Task<TimeSpan> GetUsageAsync(
         string profileId,
         DateOnly usageDate,

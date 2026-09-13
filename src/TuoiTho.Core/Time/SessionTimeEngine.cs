@@ -54,6 +54,44 @@ public sealed class SessionTimeEngine : IDisposable
         }
     }
 
+    // Holds the same gate as heartbeats so a pre-reset interval can never be persisted after this returns.
+    public async Task<bool> ResetForM1Async(
+        DateOnly usageDate,
+        Func<SessionSnapshot?>? currentSnapshotProvider = null,
+        CancellationToken cancellationToken = default)
+    {
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var currentCheckpoint = checkpoint;
+            if (currentCheckpoint is null)
+            {
+                return false;
+            }
+
+            var resetSnapshot = currentSnapshotProvider?.Invoke()
+                ?? new SessionSnapshot(
+                    currentCheckpoint.SessionId,
+                    currentCheckpoint.State,
+                    clock.UtcNow,
+                    currentCheckpoint.BootStartedAtUtc);
+
+            if (resetSnapshot.SessionId != currentCheckpoint.SessionId)
+            {
+                throw new InvalidOperationException("The M1 reset snapshot does not match the managed session.");
+            }
+
+            var resetCheckpoint = CreateCheckpoint(resetSnapshot);
+            await usageStore.ResetUsageAndSaveCheckpointAsync(profileId, usageDate, resetCheckpoint, cancellationToken);
+            checkpoint = resetCheckpoint;
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public async Task<TimeEngineApplyResult> StopAsync(CancellationToken cancellationToken = default)
     {
         await gate.WaitAsync(cancellationToken);

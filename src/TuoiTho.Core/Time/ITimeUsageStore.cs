@@ -14,6 +14,16 @@ public interface ITimeUsageStore
 
     Task ResetUsageAsync(string profileId, DateOnly usageDate, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    async Task ResetUsageAndSaveCheckpointAsync(
+        string profileId,
+        DateOnly usageDate,
+        TimeTrackingCheckpoint checkpoint,
+        CancellationToken cancellationToken = default)
+    {
+        await ResetUsageAsync(profileId, usageDate, cancellationToken);
+        await SaveAsync(profileId, checkpoint, [], cancellationToken);
+    }
+
     Task<TimeSpan> GetUsageAsync(
         string profileId,
         DateOnly usageDate,

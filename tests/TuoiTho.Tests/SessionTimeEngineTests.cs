@@ -228,6 +228,30 @@ public sealed class SessionTimeEngineTests
         using(var restarted=new SessionTimeEngine(store,clock,"child-1")){await restarted.InitializeAsync(Snapshot(SessionActivityState.Active,start.AddSeconds(80)));await restarted.ApplyObservationAsync(Snapshot(SessionActivityState.Active,start.AddSeconds(140)));}
         Assert.Equal(TimeSpan.FromSeconds(140),await store.GetUsageAsync("child-1",new DateOnly(2026,9,14)));
     }
+    [Fact]
+    public async Task M1ResetDiscardsQueuedPreResetHeartbeatAndStartsFromResetBaseline()
+    {
+        var start = Utc(2026, 9, 14, 9, 0);
+        var resetAt = start.AddMinutes(121);
+        var clock = new FakeClock(resetAt, TimeZoneInfo.Utc);
+        var store = new FakeTimeUsageStore();
+        using var engine = new SessionTimeEngine(store, clock, "m1-child");
+        var date = new DateOnly(2026, 9, 14);
+
+        await engine.InitializeAsync(Snapshot(SessionActivityState.Active, start, start.AddHours(-1)));
+        await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active, start.AddMinutes(120), start.AddHours(-1)));
+        Assert.Equal(TimeSpan.FromMinutes(120), await store.GetUsageAsync("m1-child", date));
+
+        Assert.True(await engine.ResetForM1Async(date, () => Snapshot(SessionActivityState.Active, resetAt, start.AddHours(-1))));
+        Assert.Equal(TimeSpan.Zero, await store.GetUsageAsync("m1-child", date));
+        Assert.Equal(resetAt, (await store.LoadCheckpointAsync("m1-child"))!.LastObservedAtUtc);
+
+        Assert.Equal(TimeEngineApplyResult.IgnoredOutOfOrder, await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active, start.AddMinutes(120).AddSeconds(30), start.AddHours(-1))));
+        Assert.Equal(TimeSpan.Zero, await store.GetUsageAsync("m1-child", date));
+
+        await engine.ApplyObservationAsync(Snapshot(SessionActivityState.Active, resetAt.AddSeconds(10), start.AddHours(-1)));
+        Assert.Equal(TimeSpan.FromSeconds(10), await store.GetUsageAsync("m1-child", date));
+    }
     private static SessionSnapshot Snapshot(
         SessionActivityState state,
         DateTimeOffset observedAtUtc,

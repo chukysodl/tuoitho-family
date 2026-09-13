@@ -13,12 +13,11 @@ internal sealed class FakeClock(DateTimeOffset utcNow, TimeZoneInfo localTimeZon
 
 internal sealed class FakeTimeUsageStore : ITimeUsageStore
 {
-    private readonly Dictionary<DateOnly, TimeSpan> usageByDate = [];
-
-    public TimeTrackingCheckpoint? Checkpoint { get; private set; }
+    private readonly Dictionary<(string ProfileId, DateOnly Date), TimeSpan> usageByDate = [];
+    private readonly Dictionary<string, TimeTrackingCheckpoint> checkpoints = [];
 
     public Task<TimeTrackingCheckpoint?> LoadCheckpointAsync(string profileId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Checkpoint);
+        Task.FromResult(checkpoints.TryGetValue(profileId, out var checkpoint) ? checkpoint : null);
 
     public Task SaveAsync(
         string profileId,
@@ -28,24 +27,25 @@ internal sealed class FakeTimeUsageStore : ITimeUsageStore
     {
         foreach (var usageSlice in usageSlices)
         {
-            usageByDate.TryGetValue(usageSlice.Date, out var current);
-            usageByDate[usageSlice.Date] = current + usageSlice.ActiveDuration;
+            var key = (profileId, usageSlice.Date);
+            usageByDate.TryGetValue(key, out var current);
+            usageByDate[key] = current + usageSlice.ActiveDuration;
         }
 
-        Checkpoint = checkpoint;
+        checkpoints[profileId] = checkpoint;
         return Task.CompletedTask;
     }
 
     public Task ResetUsageAsync(string profileId, DateOnly date, CancellationToken cancellationToken = default)
     {
-        usageByDate.Remove(date);
-        Checkpoint = null;
+        usageByDate.Remove((profileId, date));
+        checkpoints.Remove(profileId);
         return Task.CompletedTask;
     }
 
     public Task<TimeSpan> GetUsageAsync(string profileId, DateOnly date, CancellationToken cancellationToken = default)
     {
-        usageByDate.TryGetValue(date, out var usage);
+        usageByDate.TryGetValue((profileId, date), out var usage);
         return Task.FromResult(usage);
     }
 }
