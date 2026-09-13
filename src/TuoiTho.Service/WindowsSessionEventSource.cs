@@ -17,6 +17,7 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
     private readonly IWindowsSessionNotificationSource notificationSource;
     private readonly Channel<SessionSnapshot> events = Channel.CreateUnbounded<SessionSnapshot>();
     private readonly TimeSpan pollInterval;
+    private readonly int idleThresholdMinutes;
     private readonly bool sessionIsConfigured;
     private readonly ILogger<WindowsSessionEventSource> logger;
     private Func<int?> getActiveConsoleSessionId;
@@ -52,6 +53,7 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
         var value = options.Value;
         value.Validate();
         pollInterval = TimeSpan.FromSeconds(value.IdlePollIntervalSeconds);
+        idleThresholdMinutes = value.IdleThresholdMinutes;
         sessionIsConfigured = value.SessionId.HasValue;
         trackedSessionId = value.SessionId ?? 0;
         getActiveConsoleSessionId = GetActiveConsoleSessionId;
@@ -203,7 +205,7 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
 
     public SessionActivityRuntimeDiagnostics? GetRuntimeDiagnostics() => !initialized
         ? null
-        : new(currentState, explicitLockLatched, lastObservedActivity?.Raw?.SessionState, lastObservedActivity?.Raw?.SessionFlags, sessionNotificationsAvailable, notificationError);
+        : new(currentState, explicitLockLatched, lastObservedActivity?.Raw?.SessionState, lastObservedActivity?.Raw?.SessionFlags, sessionNotificationsAvailable, notificationError, idleThresholdMinutes);
 
     public SessionSnapshot? ReinitializeForM1Reset()
     {
@@ -340,4 +342,4 @@ internal static partial class SessionActivityLog
     public static partial void NotificationsDegraded(ILogger logger, string error);
 }
 
-public sealed record SessionActivityRuntimeDiagnostics(SessionActivityState State, bool ExplicitLockLatched, int? WtsConnectionState, int? WtsSessionFlags, bool SessionNotificationsAvailable, string? NotificationError);
+public sealed record SessionActivityRuntimeDiagnostics(SessionActivityState State, bool ExplicitLockLatched, int? WtsConnectionState, int? WtsSessionFlags, bool SessionNotificationsAvailable, string? NotificationError, int IdleThresholdMinutes);

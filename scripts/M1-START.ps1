@@ -6,6 +6,7 @@ $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $session=(Get-Process -Id $PID).SessionId
 
 $env:TimeTracking__ProfileId='m1-child';$env:TimeTracking__SessionId=$session
+$env:TimeTracking__IdleThresholdMinutes='1';$env:TimeTracking__IdlePollIntervalSeconds='5'
 $env:SessionAgent__ProfileId='m1-child'
 $env:SessionAgent__M1TestMode='true';$env:SessionAgent__M1WarningPublisherSid=$sid
 $env:ParentControl__AllowedParentSids__0=$sid
