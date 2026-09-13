@@ -64,7 +64,7 @@ public sealed class ActivityIpcTests
     }
 
     [Fact]
-    public void CombinedProviderUsesFreshSampleAndLetsLockedWtsWin()
+    public void FreshAgentSampleOverridesUnreliableWtsLockedFlagWithoutExplicitLockEvent()
     {
         var clock = new FakeClock(new DateTimeOffset(2026, 9, 12, 9, 0, 0, TimeSpan.Zero), TimeZoneInfo.Utc);
         var cache = new ActivitySampleCache(clock);
@@ -74,7 +74,8 @@ public sealed class ActivityIpcTests
         Assert.Equal(SessionActivityState.Active, provider.GetActivity(7).State);
         cache.TryAccept(new("child", 7, clock.UtcNow, 301), "child", 7);
         Assert.Equal(SessionActivityState.Idle, provider.GetActivity(7).State);
-        var locked = new AgentReportedSessionActivityProvider(_ => new(SessionActivityState.Locked, null, null, null, null, null), cache, clock, new WindowsTimeTrackingOptions { ProfileId = "child", IdleThresholdMinutes = 5, IdlePollIntervalSeconds = 5 });
-        Assert.Equal(SessionActivityState.Locked, locked.GetActivity(7).State);
+        var wtsLockedFlag = new AgentReportedSessionActivityProvider(_ => new(SessionActivityState.Locked, null, null, null, null, null, true, new(232, 1, 7, 0, 0, 0, 0, null, null, null)), cache, clock, new WindowsTimeTrackingOptions { ProfileId = "child", IdleThresholdMinutes = 5, IdlePollIntervalSeconds = 5 });
+        cache.TryAccept(new("child", 7, clock.UtcNow, .2), "child", 7);
+        Assert.Equal(SessionActivityState.Active, wtsLockedFlag.GetActivity(7).State);
     }
 }

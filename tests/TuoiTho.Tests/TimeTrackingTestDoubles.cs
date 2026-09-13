@@ -36,6 +36,13 @@ internal sealed class FakeTimeUsageStore : ITimeUsageStore
         return Task.CompletedTask;
     }
 
+    public Task ResetUsageAsync(string profileId, DateOnly date, CancellationToken cancellationToken = default)
+    {
+        usageByDate.Remove(date);
+        Checkpoint = null;
+        return Task.CompletedTask;
+    }
+
     public Task<TimeSpan> GetUsageAsync(string profileId, DateOnly date, CancellationToken cancellationToken = default)
     {
         usageByDate.TryGetValue(date, out var usage);

@@ -31,11 +31,11 @@ public interface IWindowsSessionActivityProvider
     WindowsSessionActivity GetActivity(int sessionId);
 }
 
-public sealed class WtsSessionActivityProvider(IOptions<WindowsTimeTrackingOptions> options) : IWindowsSessionActivityProvider
+public sealed class WtsSessionActivityProvider : IWindowsSessionActivityProvider
 {
+    public WtsSessionActivityProvider(IOptions<WindowsTimeTrackingOptions> options) => ArgumentNullException.ThrowIfNull(options);
     private const int WtsSessionInfo = 24;
     private const int WtsSessionInfoEx = 25;
-    private readonly TimeSpan idleThreshold = TimeSpan.FromMinutes(options.Value.IdleThresholdMinutes);
 
     public WindowsSessionActivity GetActivity(int sessionId)
     {
@@ -111,37 +111,15 @@ public sealed class WtsSessionActivityProvider(IOptions<WindowsTimeTrackingOptio
                 return new(SessionActivityState.LoggedOut, null, lastInputTime, currentTime, null, $"WTS connect state {data.SessionState}.", true, raw);
             }
 
-            if (data.SessionFlags == 0)
-            {
-                return new(SessionActivityState.Locked, null, lastInputTime, currentTime, null, null, true, raw);
-            }
-
-            if (currentTime is null || lastInputTime is null)
-            {
-                return new(
-                    SessionActivityState.Unknown,
-                    null,
-                    lastInputTime,
-                    currentTime,
-                    null,
-                    "WTS returned zero LastInputTime/CurrentTime in both WTSSessionInfoEx and the WTSSessionInfo fallback.",
-                    true,
-                    raw);
-            }
-
-            var idleDuration = currentTime.Value - lastInputTime.Value;
-            if (idleDuration < TimeSpan.Zero)
-            {
-                idleDuration = TimeSpan.Zero;
-            }
-
+            // SessionFlags is unreliable on some real Windows machines. WTS is used
+            // here only for session connectivity; SessionAgent supplies input activity.
             return new(
-                idleDuration >= idleThreshold ? SessionActivityState.Idle : SessionActivityState.Active,
-                idleDuration,
+                SessionActivityState.Unknown,
+                null,
                 lastInputTime,
                 currentTime,
                 null,
-                null,
+                "WTS session is connected; activity and lock state are determined outside WTS SessionFlags.",
                 true,
                 raw);
         }

@@ -25,6 +25,8 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
     private SessionActivityState currentState;
     private DateTimeOffset lastPublishedAtUtc;
     private bool initialized;
+    private bool explicitLockLatched;
+    private WindowsSessionActivity? lastObservedActivity;
     private bool started;
     private bool stopped;
     private CancellationTokenSource? monitorCancellation;
@@ -197,9 +199,32 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
         }
     }
 
+    public SessionActivityRuntimeDiagnostics? GetRuntimeDiagnostics() => !initialized
+        ? null
+        : new(currentState, explicitLockLatched, lastObservedActivity?.Raw?.SessionState, lastObservedActivity?.Raw?.SessionFlags);
+
+    public SessionSnapshot? ReinitializeForM1Reset()
+    {
+        if (!initialized)
+        {
+            return null;
+        }
+
+        var activity = GetActivity();
+        currentState = activity.State;
+        lastPublishedAtUtc = clock.UtcNow;
+        var snapshot = CreateSnapshot(currentState, lastPublishedAtUtc);
+        events.Writer.TryWrite(snapshot);
+        return snapshot;
+    }
+
     private WindowsSessionActivity GetActivity()
     {
-        var activity = activityProvider.GetActivity(trackedSessionId);
+        var observed = activityProvider.GetActivity(trackedSessionId);
+        lastObservedActivity = observed;
+        var activity = explicitLockLatched && observed.State != SessionActivityState.LoggedOut
+            ? observed with { State = SessionActivityState.Locked, IdleDuration = null }
+            : observed;
         if (activity.State == SessionActivityState.Unknown)
         {
             SessionActivityLog.Unknown(logger, trackedSessionId, activity.Diagnostic, activity.Win32Error);
@@ -240,14 +265,19 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
 
                 break;
             case SessionSwitchReason.SessionLock:
+                explicitLockLatched = true;
+                Publish(SessionActivityState.Locked, occurredAtUtc);
+                break;
             case SessionSwitchReason.ConsoleDisconnect:
             case SessionSwitchReason.RemoteDisconnect:
-                Publish(SessionActivityState.Locked, occurredAtUtc);
+                explicitLockLatched = false;
+                Publish(SessionActivityState.LoggedOut, occurredAtUtc);
                 break;
             case SessionSwitchReason.SessionUnlock:
             case SessionSwitchReason.SessionLogon:
             case SessionSwitchReason.ConsoleConnect:
             case SessionSwitchReason.RemoteConnect:
+                explicitLockLatched = false;
                 Publish(GetActivity().State, occurredAtUtc);
                 break;
         }
@@ -304,3 +334,5 @@ internal static partial class SessionActivityLog
         Message = "Managed session {SessionId} activity is UNKNOWN: {Diagnostic} (Win32 {Win32Error}).")]
     public static partial void Unknown(ILogger logger, int sessionId, string? diagnostic, int? win32Error);
 }
+
+public sealed record SessionActivityRuntimeDiagnostics(SessionActivityState State, bool ExplicitLockLatched, int? WtsConnectionState, int? WtsSessionFlags);

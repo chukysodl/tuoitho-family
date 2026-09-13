@@ -77,6 +77,25 @@ public sealed class WindowsSessionEventSourceLifecycleTests
     }
 
     [Fact]
+    public async Task ExplicitLockLatchPreventsFreshActivityFromUnlockingUntilSessionUnlock()
+    {
+        var notifications = new RecordingNotificationSource();
+        using var source = CreateSource(new FixedActivityProvider(SessionActivityState.Active), notifications);
+        await source.StartAsync();
+        await source.GetInitialSnapshotAsync();
+
+        notifications.Emit(SessionSwitchReason.SessionLock, 7);
+        Assert.True(source.GetRuntimeDiagnostics()!.ExplicitLockLatched);
+        Assert.Equal(SessionActivityState.Locked, source.ReinitializeForM1Reset()!.State);
+
+        // A fresh periodic provider observation remains LOCKED while the explicit latch is set.
+        Assert.Equal(SessionActivityState.Locked, source.ReinitializeForM1Reset()!.State);
+
+        notifications.Emit(SessionSwitchReason.SessionUnlock, 7);
+        Assert.False(source.GetRuntimeDiagnostics()!.ExplicitLockLatched);
+        Assert.Equal(SessionActivityState.Active, source.ReinitializeForM1Reset()!.State);
+    }
+    [Fact]
     public void WtsProviderTreatsAnInvalidSessionAsLoggedOutWithoutQueryingProcessInput()
     {
         var provider = new WtsSessionActivityProvider(Options.Create(new WindowsTimeTrackingOptions

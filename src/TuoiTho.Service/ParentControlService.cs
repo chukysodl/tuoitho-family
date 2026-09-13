@@ -3,7 +3,7 @@ using TuoiTho.Core.Time;
 
 namespace TuoiTho.Service;
 
-public sealed class ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes, ActivitySampleCache? activityCache = null)
+public sealed class ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes, ActivitySampleCache? activityCache = null, WindowsSessionEventSource? sessionEventSource = null)
 {
     public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes) : this(store, new EmptyUsageStore(), clock, new DeviceTimePolicyEngine(clock), changes) { }
     private sealed class EmptyUsageStore : ITimeUsageStore
@@ -29,6 +29,10 @@ public sealed class ParentControlService(IDeviceTimePolicyStore store, ITimeUsag
             await store.ClearGrantsAsync(policy.ProfileId, token);
             policy = policy with { DailyQuotaMinutes = 3, ParentOverride = false, ParentLock = false, TestMode = true };
             await store.SaveAsync(policy, token);
+            if (sessionEventSource?.ReinitializeForM1Reset() is { } snapshot)
+            {
+                await usage.SaveAsync(policy.ProfileId, new TimeTrackingCheckpoint(snapshot.SessionId, snapshot.State, snapshot.OccurredAtUtc, snapshot.BootStartedAtUtc), [], token);
+            }
             changes.Notify();
             return new(true, null, policy, await StatusAsync(policy, token));
         }
@@ -56,8 +60,9 @@ public sealed class ParentControlService(IDeviceTimePolicyStore store, ITimeUsag
         var state = policy.ParentOverride ? "OVERRIDE" : decision.Allowed ? "ALLOWED" : PolicyReasonText.ToDisplayText(decision.Reason);
         var sample = activityCache?.GetFresh(policy.ProfileId, policy.ManagedSessionId, TimeSpan.FromSeconds(15));
         var checkpoint = await usage.LoadCheckpointAsync(policy.ProfileId, token);
-        var activityState = checkpoint?.State.ToString().ToUpperInvariant() ?? "UNKNOWN";
-        var diagnostics = new ParentActivityDiagnostics(sample is not null, activityState, sample?.IdleSeconds, activityCache?.LastReceivedAtUtc is { } at ? Math.Max(0, (clock.UtcNow - at).TotalSeconds) : null, policy.ManagedSessionId, used.TotalSeconds, checkpoint?.LastObservedAtUtc);
+        var runtime = sessionEventSource?.GetRuntimeDiagnostics();
+        var activityState = runtime?.State.ToString().ToUpperInvariant() ?? checkpoint?.State.ToString().ToUpperInvariant() ?? "UNKNOWN";
+        var diagnostics = new ParentActivityDiagnostics(sample is not null, activityState, sample?.IdleSeconds, activityCache?.LastReceivedAtUtc is { } at ? Math.Max(0, (clock.UtcNow - at).TotalSeconds) : null, policy.ManagedSessionId, used.TotalSeconds, checkpoint?.LastObservedAtUtc, runtime?.ExplicitLockLatched ?? false, runtime?.WtsConnectionState, runtime?.WtsSessionFlags);
         return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics);
     }
 
