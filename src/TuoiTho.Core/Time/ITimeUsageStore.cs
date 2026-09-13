@@ -12,6 +12,8 @@ public interface ITimeUsageStore
         IReadOnlyList<DailyUsageSlice> usageSlices,
         CancellationToken cancellationToken = default);
 
+    Task ResetUsageAsync(string profileId, DateOnly usageDate, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     Task<TimeSpan> GetUsageAsync(
         string profileId,
         DateOnly usageDate,

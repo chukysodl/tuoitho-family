@@ -16,6 +16,7 @@ public interface IWindowsSessionNotificationSource : IDisposable
 
 public sealed class WindowsSessionNotificationPump : IWindowsSessionNotificationSource
 {
+    private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(10);
     private const uint WmWtsSessionChange = 0x02B1;
     private const uint WmClose = 0x0010;
     private const uint WmNcCreate = 0x0081;
@@ -48,7 +49,12 @@ public sealed class WindowsSessionNotificationPump : IWindowsSessionNotification
             thread.Start();
         }
 
-        started.Wait();
+        if (!started.Wait(StartupTimeout))
+        {
+            Dispose();
+            throw new TimeoutException("Windows session notifications did not start within the configured timeout.");
+        }
+
         if (startupException is not null)
         {
             throw new InvalidOperationException("Could not start Windows session notifications.", startupException);
@@ -68,7 +74,6 @@ public sealed class WindowsSessionNotificationPump : IWindowsSessionNotification
             PostMessage(handle, WmClose, IntPtr.Zero, IntPtr.Zero);
         }
 
-        started.Dispose();
     }
 
     private void Run()
@@ -76,6 +81,11 @@ public sealed class WindowsSessionNotificationPump : IWindowsSessionNotification
         try
         {
             windowHandle = CreateMessageWindow(this);
+            if (Volatile.Read(ref disposed) != 0)
+            {
+                return;
+            }
+
             if (windowHandle == IntPtr.Zero)
             {
                 throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
@@ -84,6 +94,11 @@ public sealed class WindowsSessionNotificationPump : IWindowsSessionNotification
             if (!WTSRegisterSessionNotification(windowHandle, NotifyForAllSessions))
             {
                 throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            if (Volatile.Read(ref disposed) != 0)
+            {
+                return;
             }
 
             started.Set();

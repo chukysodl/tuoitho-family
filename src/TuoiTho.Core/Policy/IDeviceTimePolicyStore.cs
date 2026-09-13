@@ -5,4 +5,5 @@ public interface IDeviceTimePolicyStore
  Task SaveAsync(DeviceTimePolicy policy, CancellationToken cancellationToken=default);
  Task AddGrantAsync(string profileId, TemporaryGrant grant, CancellationToken cancellationToken=default);
  Task<IReadOnlyList<TemporaryGrant>> GetGrantsAsync(string profileId, CancellationToken cancellationToken=default);
+ Task ClearGrantsAsync(string profileId, CancellationToken cancellationToken=default) => Task.CompletedTask;
 }

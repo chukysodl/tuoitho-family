@@ -104,6 +104,16 @@ public sealed class SqliteTimeUsageStore : ITimeUsageStore
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task ResetUsageAsync(string profileId, DateOnly usageDate, CancellationToken cancellationToken = default)
+    {
+        ValidateProfileId(profileId);
+        await using var connection = await database.OpenConnectionAsync(cancellationToken);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "DELETE FROM time_usage_daily WHERE profile_id = $profile_id AND usage_date = $usage_date;";
+        command.Parameters.AddWithValue("$profile_id", profileId);
+        command.Parameters.AddWithValue("$usage_date", usageDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
     public async Task<TimeSpan> GetUsageAsync(
         string profileId,
         DateOnly usageDate,

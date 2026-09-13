@@ -99,6 +99,7 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
             notificationSource.SessionChanged -= OnSessionSwitch;
             monitorCancellation?.Dispose();
             monitorCancellation = null;
+            notificationSource.Dispose();
             throw;
         }
     }
