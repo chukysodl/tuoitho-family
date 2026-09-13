@@ -77,6 +77,39 @@ public sealed class WindowsSessionEventSourceLifecycleTests
     }
 
     [Fact]
+    public async Task NotificationFailureStillInitializesActiveRuntimeAndPersistsHeartbeatUsage()
+    {
+        var start = new DateTimeOffset(2026, 9, 12, 9, 0, 0, TimeSpan.Zero);
+        var clock = new FakeClock(start, TimeZoneInfo.Utc);
+        using var source = new WindowsSessionEventSource(
+            clock,
+            Options.Create(new WindowsTimeTrackingOptions { SessionId = 7, IdleThresholdMinutes = 5, IdlePollIntervalSeconds = 1 }),
+            new FixedActivityProvider(SessionActivityState.Active),
+            new FixedBootTimeProvider(),
+            new ThrowingNotificationSource(),
+            NullLogger<WindowsSessionEventSource>.Instance);
+        var usage = new FakeTimeUsageStore();
+        using var engine = new SessionTimeEngine(usage, clock, "child");
+
+        await source.StartAsync();
+        var initial = await source.GetInitialSnapshotAsync();
+        await engine.InitializeAsync(initial);
+        var diagnostics = source.GetRuntimeDiagnostics();
+        Assert.NotNull(diagnostics);
+        Assert.False(diagnostics!.SessionNotificationsAvailable);
+        Assert.Contains("unavailable", diagnostics.NotificationError!, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(SessionActivityState.Active, diagnostics.State);
+
+        await using var reader = source.ReadEventsAsync().GetAsyncEnumerator();
+        var heartbeat = reader.MoveNextAsync().AsTask();
+        clock.UtcNow = start.AddSeconds(30);
+        Assert.True(await heartbeat.WaitAsync(TimeSpan.FromSeconds(2)));
+        await engine.ApplyObservationAsync(reader.Current);
+        await engine.StopAsync();
+
+        Assert.Equal(TimeSpan.FromSeconds(30), await usage.GetUsageAsync("child", new DateOnly(2026, 9, 12)));
+    }
+    [Fact]
     public async Task ExplicitLockLatchPreventsFreshActivityFromUnlockingUntilSessionUnlock()
     {
         var notifications = new RecordingNotificationSource();
@@ -152,6 +185,12 @@ public sealed class WindowsSessionEventSourceLifecycleTests
         public DateTimeOffset GetBootStartedAtUtc(DateTimeOffset utcNow) => utcNow.AddHours(-1);
     }
 
+    private sealed class ThrowingNotificationSource : IWindowsSessionNotificationSource
+    {
+        public event EventHandler<WindowsSessionNotification>? SessionChanged { add { } remove { } }
+        public void Start() => throw new InvalidOperationException("Windows session notifications unavailable.");
+        public void Dispose() { }
+    }
     private sealed class RecordingNotificationSource : IWindowsSessionNotificationSource
     {
         private EventHandler<WindowsSessionNotification>? sessionChanged;

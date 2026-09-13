@@ -28,6 +28,8 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
     private bool explicitLockLatched;
     private WindowsSessionActivity? lastObservedActivity;
     private bool started;
+    private bool sessionNotificationsAvailable;
+    private string? notificationError;
     private bool stopped;
     private CancellationTokenSource? monitorCancellation;
     private Task? monitorTask;
@@ -82,30 +84,9 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
             throw new InvalidOperationException("The Windows session event source has been stopped.");
         }
 
-        if (started)
-        {
-            return Task.CompletedTask;
-        }
-
-        notificationSource.SessionChanged += OnSessionSwitch;
-        try
-        {
-            notificationSource.Start();
-            monitorCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            monitorTask = MonitorAsync(monitorCancellation.Token);
-            started = true;
-            return Task.CompletedTask;
-        }
-        catch
-        {
-            notificationSource.SessionChanged -= OnSessionSwitch;
-            monitorCancellation?.Dispose();
-            monitorCancellation = null;
-            notificationSource.Dispose();
-            throw;
-        }
+        started = true;
+        return Task.CompletedTask;
     }
-
     public Task<SessionSnapshot> GetInitialSnapshotAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -127,9 +108,30 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
         currentState = GetActivity().State;
         lastPublishedAtUtc = clock.UtcNow;
         initialized = true;
+        monitorCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        monitorTask = MonitorAsync(monitorCancellation.Token);
+        StartNotificationsBestEffort();
         return Task.FromResult(CreateSnapshot(currentState, lastPublishedAtUtc));
     }
 
+    private void StartNotificationsBestEffort()
+    {
+        notificationSource.SessionChanged += OnSessionSwitch;
+        try
+        {
+            notificationSource.Start();
+            sessionNotificationsAvailable = true;
+            notificationError = null;
+        }
+        catch (Exception exception)
+        {
+            notificationSource.SessionChanged -= OnSessionSwitch;
+            sessionNotificationsAvailable = false;
+            notificationError = exception.Message;
+            notificationSource.Dispose();
+            SessionActivityLog.NotificationsDegraded(logger, exception.Message);
+        }
+    }
     public async IAsyncEnumerable<SessionSnapshot> ReadEventsAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -201,7 +203,7 @@ public sealed class WindowsSessionEventSource : ISessionEventSource, ISessionEve
 
     public SessionActivityRuntimeDiagnostics? GetRuntimeDiagnostics() => !initialized
         ? null
-        : new(currentState, explicitLockLatched, lastObservedActivity?.Raw?.SessionState, lastObservedActivity?.Raw?.SessionFlags);
+        : new(currentState, explicitLockLatched, lastObservedActivity?.Raw?.SessionState, lastObservedActivity?.Raw?.SessionFlags, sessionNotificationsAvailable, notificationError);
 
     public SessionSnapshot? ReinitializeForM1Reset()
     {
@@ -333,6 +335,9 @@ internal static partial class SessionActivityLog
         Level = LogLevel.Warning,
         Message = "Managed session {SessionId} activity is UNKNOWN: {Diagnostic} (Win32 {Win32Error}).")]
     public static partial void Unknown(ILogger logger, int sessionId, string? diagnostic, int? win32Error);
+
+    [LoggerMessage(EventId = 1201, Level = LogLevel.Warning, Message = "DEGRADED_SESSION_NOTIFICATIONS: {Error}")]
+    public static partial void NotificationsDegraded(ILogger logger, string error);
 }
 
-public sealed record SessionActivityRuntimeDiagnostics(SessionActivityState State, bool ExplicitLockLatched, int? WtsConnectionState, int? WtsSessionFlags);
+public sealed record SessionActivityRuntimeDiagnostics(SessionActivityState State, bool ExplicitLockLatched, int? WtsConnectionState, int? WtsSessionFlags, bool SessionNotificationsAvailable, string? NotificationError);
