@@ -10,8 +10,9 @@ public sealed class DeviceTimePolicyEngine(IClock clock)
         if (policy.ParentOverride) return new(true, AccessDenyReason.None, int.MaxValue, []);
         if (!policy.Windows.Any(window => window.Day == now.DayOfWeek && window.Contains(TimeOnly.FromDateTime(now.DateTime)))) return Deny(AccessDenyReason.OutsideSchedule);
         var grantMinutes = grants.Where(grant => grant.ExpiresAtUtc > clock.UtcNow).Sum(grant => grant.Minutes);
-        var remaining = Math.Max(0, policy.DailyQuotaMinutes + grantMinutes - (int)Math.Ceiling(usedToday.TotalMinutes));
-        if (remaining == 0) return Deny(AccessDenyReason.QuotaExhausted);
+        var remainingDuration = TimeSpan.FromMinutes(policy.DailyQuotaMinutes + grantMinutes) - usedToday;
+        if (remainingDuration <= TimeSpan.Zero) return Deny(AccessDenyReason.QuotaExhausted);
+        var remaining = (int)Math.Ceiling(remainingDuration.TotalMinutes);
         return new(true, AccessDenyReason.None, remaining, policy.WarningThresholdMinutes.Where(threshold => threshold >= remaining).OrderByDescending(x => x).ToArray());
     }
     private static PolicyDecision Deny(AccessDenyReason reason) => new(false, reason, 0, []);

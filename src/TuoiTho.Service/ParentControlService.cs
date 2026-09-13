@@ -63,7 +63,9 @@ public sealed class ParentControlService(IDeviceTimePolicyStore store, ITimeUsag
         var runtime = sessionEventSource?.GetRuntimeDiagnostics();
         var activityState = runtime?.State.ToString().ToUpperInvariant() ?? checkpoint?.State.ToString().ToUpperInvariant() ?? "UNKNOWN";
         var diagnostics = new ParentActivityDiagnostics(sample is not null, activityState, sample?.IdleSeconds, activityCache?.LastReceivedAtUtc is { } at ? Math.Max(0, (clock.UtcNow - at).TotalSeconds) : null, policy.ManagedSessionId, used.TotalSeconds, checkpoint?.LastObservedAtUtc, runtime?.ExplicitLockLatched ?? false, runtime?.WtsConnectionState, runtime?.WtsSessionFlags, runtime?.SessionNotificationsAvailable ?? false, runtime?.NotificationError, runtime?.IdleThresholdMinutes ?? 5, sample?.RawInputAvailable == true ? "RAW_INPUT" : "UNAVAILABLE", sample?.WindowsIdleSeconds);
-        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics);
+        var allowedSeconds = TimeSpan.FromMinutes(policy.DailyQuotaMinutes + active.Sum(g => g.Minutes)).TotalSeconds;
+        var remainingSeconds = Math.Max(0, allowedSeconds - used.TotalSeconds);
+        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds);
     }
 
     private static DateTimeOffset EndOfLocalDay(DateTimeOffset utc, TimeZoneInfo zone) { var local = TimeZoneInfo.ConvertTime(utc, zone); var next = local.Date.AddDays(1); return new DateTimeOffset(next, zone.GetUtcOffset(next)).ToUniversalTime(); }
