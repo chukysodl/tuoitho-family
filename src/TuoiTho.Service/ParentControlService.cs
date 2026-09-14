@@ -13,6 +13,8 @@ public sealed class ParentControlService : IDisposable
     private readonly ActivitySampleCache? activityCache;
     private readonly WindowsSessionEventSource? sessionEventSource;
     private readonly SessionTimeEngine? timeEngine;
+    private readonly IAppPolicyStore? appPolicies;
+    private readonly AppPolicyEngine? appPolicyEngine;
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
     public ParentControlService(
@@ -23,7 +25,7 @@ public sealed class ParentControlService : IDisposable
         PolicyChangeSignal changes,
         ActivitySampleCache? activityCache = null,
         WindowsSessionEventSource? sessionEventSource = null,
-        SessionTimeEngine? timeEngine = null)
+        SessionTimeEngine? timeEngine = null, IAppPolicyStore? appPolicies = null, AppPolicyEngine? appPolicyEngine = null)
     {
         this.store = store;
         this.usage = usage;
@@ -33,6 +35,8 @@ public sealed class ParentControlService : IDisposable
         this.activityCache = activityCache;
         this.sessionEventSource = sessionEventSource;
         this.timeEngine = timeEngine;
+        this.appPolicies = appPolicies;
+        this.appPolicyEngine = appPolicyEngine;
     }
 
     public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes)
@@ -55,7 +59,8 @@ public sealed class ParentControlService : IDisposable
             if (string.IsNullOrWhiteSpace(command.ProfileId) || command.ManagedSessionId < 0) return new(false, "INVALID_COMMAND");
             var policy = await store.LoadAsync(command.ProfileId, token);
             if (policy is null || policy.ManagedSessionId != command.ManagedSessionId) return new(false, "PROFILE_OR_SESSION_MISMATCH");
-            if (command.Action == ParentControlAction.GetStatus) return new(true, null, policy, await StatusAsync(policy, token));
+            if (command.Action is ParentControlAction.GetStatus or ParentControlAction.GetApps) return new(true, null, policy, await StatusAsync(policy, token));
+            if (command.Action is ParentControlAction.AllowApp or ParentControlAction.BlockApp or ParentControlAction.RemoveAppRule) return await ExecuteAppAsync(command, policy, token);
             if (command.Action == ParentControlAction.ResetM1)
             {
                 if (!policy.TestMode || policy.ProfileId != "m1-child") return new(false, "M1_RESET_NOT_ALLOWED");
@@ -86,6 +91,15 @@ public sealed class ParentControlService : IDisposable
         }
     }
 
+    private async Task<ParentControlResult> ExecuteAppAsync(ParentControlCommand command, DeviceTimePolicy policy, CancellationToken token)
+    {
+        if (appPolicies is null || appPolicyEngine is null || command.Application is null) return new(false, "INVALID_APP_COMMAND");
+        if (command.Application.NormalizedExecutablePath.Length == 0) return new(false, "INVALID_APP_COMMAND");
+        if (command.Action == ParentControlAction.RemoveAppRule) await appPolicies.RemoveRuleAsync(policy.ProfileId, command.Application, token);
+        else await appPolicies.SaveRuleAsync(new AppRule(policy.ProfileId, command.Application, command.Action == ParentControlAction.AllowApp ? AppRuleDecision.Allow : AppRuleDecision.Block), token);
+        changes.Notify();
+        return new(true, null, policy, await StatusAsync(policy, token));
+    }
     private async Task ResetM1UsageAndRuntimeAsync(string profileId, DateOnly date, CancellationToken token)
     {
         if (timeEngine is not null && await timeEngine.ResetForM1Async(date, () => sessionEventSource?.ReinitializeForM1Reset(), token))
@@ -136,7 +150,8 @@ public sealed class ParentControlService : IDisposable
         var diagnostics = new ParentActivityDiagnostics(sample is not null, activityState, sample?.IdleSeconds, activityCache?.LastReceivedAtUtc is { } at ? Math.Max(0, (clock.UtcNow - at).TotalSeconds) : null, policy.ManagedSessionId, used.TotalSeconds, checkpoint?.LastObservedAtUtc, runtime?.ExplicitLockLatched ?? false, runtime?.WtsConnectionState, runtime?.WtsSessionFlags, runtime?.SessionNotificationsAvailable ?? false, runtime?.NotificationError, runtime?.IdleThresholdMinutes ?? 5, sample?.RawInputAvailable == true ? "RAW_INPUT" : "UNAVAILABLE", sample?.WindowsIdleSeconds);
         var allowedSeconds = TimeSpan.FromMinutes(policy.DailyQuotaMinutes + active.Sum(g => g.Minutes)).TotalSeconds;
         var remainingSeconds = Math.Max(0, allowedSeconds - used.TotalSeconds);
-        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds);
+        var apps = appPolicies is null || appPolicyEngine is null ? null : new ParentAppControlStatus(await appPolicies.GetDefaultPolicyAsync(policy.ProfileId, token), (await appPolicies.GetObservedAppsAsync(policy.ProfileId, policy.ManagedSessionId, token)).Select(a => { var evaluation = AppPolicyEngine.Evaluate(a.Identity, appPolicies.GetRulesAsync(policy.ProfileId, token).GetAwaiter().GetResult(), appPolicies.GetDefaultPolicyAsync(policy.ProfileId, token).GetAwaiter().GetResult()); return new ParentObservedApp(a.Identity, evaluation.Decision, evaluation.Reason); }).ToArray());
+        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps);
     }
 
     public void Dispose() => commandGate.Dispose();

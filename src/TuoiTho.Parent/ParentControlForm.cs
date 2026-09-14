@@ -12,6 +12,7 @@ public sealed class ParentControlForm : Form
     private readonly Label countdown = new() { AutoSize = true, Text = "00:00:00", Font = new Font("Segoe UI", 30, FontStyle.Bold), ForeColor = Color.DarkBlue, Padding = new Padding(8) };
     private Button? resetButton;
     private bool refreshing;
+    private AppPolicyPanel? appPanel;
 
     public ParentControlForm(ParentDesktopController controller)
     {
@@ -38,6 +39,7 @@ public sealed class ParentControlForm : Form
             AddStatus(root, item.Item1, item.Item2);
         }
 
+        appPanel = new AppPolicyPanel(controller); appPanel.RefreshRequested += async (_, _) => await RefreshAsync(); AddWide(root, appPanel);
         AddWide(root, message);
         var buttons = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, Padding = new Padding(0, 10, 0, 0) };
         AddWide(root, buttons);
@@ -135,6 +137,7 @@ public sealed class ParentControlForm : Form
         }
 
         countdown.Text = FormatCountdown(status.RemainingSeconds);
+        appPanel?.Update(status.Apps);
         values["Profile"].Text = status.ProfileId;
         values["Session"].Text = status.ManagedSessionId.ToString(CultureInfo.CurrentCulture);
         values["TestMode"].Text = status.TestMode ? "BẬT (không khóa thật)" : "TẮT";

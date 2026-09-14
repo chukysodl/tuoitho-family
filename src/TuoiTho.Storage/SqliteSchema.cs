@@ -4,7 +4,7 @@ internal sealed record Migration(string Id, string Sql);
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public static IReadOnlyList<Migration> Migrations { get; } =
     [
@@ -120,6 +120,21 @@ internal static class SqliteSchema
                 policy_json TEXT NOT NULL,
                 updated_at_utc TEXT NOT NULL
             );
+            """),
+        new Migration(
+            "0004-app-policy-simulation",
+            """
+            CREATE TABLE IF NOT EXISTS app_policy (profile_id TEXT NOT NULL PRIMARY KEY, default_policy TEXT NOT NULL, updated_at_utc TEXT NOT NULL);
+            ALTER TABLE app_rules ADD COLUMN identity_json TEXT NULL;
+            ALTER TABLE app_rules ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
+            ALTER TABLE app_rules ADD COLUMN daily_quota_minutes INTEGER NULL;
+            ALTER TABLE app_rules ADD COLUMN schedule_json TEXT NULL;
+            CREATE TABLE IF NOT EXISTS observed_apps (
+                profile_id TEXT NOT NULL, normalized_executable_path TEXT NOT NULL, session_id INTEGER NOT NULL,
+                identity_json TEXT NOT NULL, first_seen_at_utc TEXT NOT NULL, last_seen_at_utc TEXT NOT NULL,
+                PRIMARY KEY (profile_id, normalized_executable_path)
+            );
+            CREATE INDEX IF NOT EXISTS ix_observed_apps_profile_session ON observed_apps (profile_id, session_id);
             """)
     ];
 }
