@@ -74,3 +74,9 @@ Nếu cloud chết, policy hiện tại vẫn tiếp tục hoạt động.
 Ưu tiên độ chắc chắn hơn số lượng tính năng. Mỗi task phải build + test + tự sửa lỗi trước khi commit/push.
 
 User chỉ nên phải test các mốc lớn, không test các bước kỹ thuật nhỏ.
+
+## 7. Trạng thái bàn giao
+
+- TASK-003 hoàn tất và đã được M1 chấp nhận tại commit `8d2cad5`.
+- Kiểm thử M1 luôn giữ `TestMode=true`; lớp phủ hết giờ chỉ là mô phỏng an toàn, không khóa, đăng xuất, tắt máy hoặc chấm dứt ứng dụng Windows.
+- GitHub Actions run `34815667678` đã PASS.
