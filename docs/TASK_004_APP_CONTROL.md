@@ -36,3 +36,15 @@ With `TestMode=true`, set default to `BlockUnknown`; allow Notepad, block Calcul
 - Parent UI can manage an observed rule and shows the latest simulation decision.
 - TestMode proves simulation only; no process-control API is invoked.
 - Focused tests, full test suite, Release build, System Check, and GitHub Actions pass.
+## TASK-004A closeout
+
+TASK-004A is PASS and received real M2 acceptance at `f94c7b1`. The normal parent list shows manageable user applications, protects Windows infrastructure and the TuoiTho control plane, and remains simulation-only. TASK-004B1 continues on the same branch; it does not merge to `main` yet.
+
+## TASK-004B1 safe explicit-block test mode
+
+`AppEnforcementMode` distinguishes `Simulation`, `ExplicitBlockOnly`, and the model-only `AllowlistProduction`. The M2 control starts **OFF** on every Service start and is never persisted. While `TestMode=true`, an authenticated Parent can arm only `ExplicitBlockOnly`: explicit block rules may be closed for an exact verified PID/path/session; explicit allow and unreviewed applications remain allowed. A missing/non-test policy, failed verification, protected/background/control-plane classification, foreign session, or recovery tool fails closed with `SKIPPED_SAFE` audit data.
+
+The worker polls at a bounded one-second interval. It re-verifies managed session, observed classification, executable identity, and current control state before asking the app to close. It tries a graceful close first, then terminates only the still-matching PID without a process-tree or name-wide kill. The audit holds only timestamp, profile, session, executable path, decision, and action; it never includes windows, input, document, URL, screen, or message data.
+## TASK-004B1 M2 proof
+
+On the real M2 test session, Calculator stayed open with the switch off, closed when its explicit rule was armed, closed again on relaunch while armed, and stayed open again after disarming. Explicitly allowed Notepad stayed open while the switch was armed. The test finished by disarming the switch and stopping only the tracked M1 components.

@@ -31,6 +31,10 @@ public sealed class AppPolicyPanel : UserControl
     private readonly Label scan = new() { AutoSize = true, Padding = new Padding(4) };
     private readonly Label confirmation = new() { AutoSize = true, Padding = new Padding(4) };
     private readonly CheckBox showBackground = new() { Text = "Hiển thị ứng dụng nền", AutoSize = true };
+    private readonly Label enforcementTitle = new() { Text = "REAL APP BLOCKING (M2 TEST)", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Padding = new Padding(8, 4, 0, 0), Visible = false };
+    private readonly Label enforcementNotice = new() { Text = "CHẾ ĐỘ THỬ NGHIỆM: chỉ ứng dụng được đánh dấu CHẶN mới bị đóng.", AutoSize = true, ForeColor = Color.DarkOrange, Padding = new Padding(4), Visible = false };
+    private readonly Button enableEnforcement = new() { Text = "Bật chặn thử nghiệm", AutoSize = true, Visible = false };
+    private readonly Button disableEnforcement = new() { Text = "Tắt chặn thử nghiệm", AutoSize = true, Visible = false };
     private readonly Button allow = new() { Text = "✓ Cho phép", Enabled = false, AutoSize = true };
     private readonly Button block = new() { Text = "⛔ Chặn", Enabled = false, AutoSize = true };
     private readonly Button remove = new() { Text = "Xóa quy tắc", Enabled = false, AutoSize = true };
@@ -58,7 +62,9 @@ public sealed class AppPolicyPanel : UserControl
         block.Click += async (_, _) => await ApplyAsync(ParentControlAction.BlockApp, "Đã chặn");
         remove.Click += async (_, _) => await ApplyAsync(ParentControlAction.RemoveAppRule, "Đã xóa quy tắc của");
         showBackground.CheckedChanged += (_, _) => Render();
-        actions.Controls.AddRange([refresh, allow, block, remove, showBackground, scan, confirmation]);
+        enableEnforcement.Click += async (_, _) => await SetEnforcementAsync(true);
+        disableEnforcement.Click += async (_, _) => await SetEnforcementAsync(false);
+        actions.Controls.AddRange([refresh, allow, block, remove, showBackground, enforcementTitle, enableEnforcement, disableEnforcement, enforcementNotice, scan, confirmation]);
         root.Controls.Add(actions, 0, 2);
 
         var holder = new Panel { Dock = DockStyle.Fill };
@@ -70,6 +76,7 @@ public sealed class AppPolicyPanel : UserControl
         AddColumn("Tệp chạy", "Path");
         AddColumn("Quy tắc", "Rule");
         AddColumn("Kết quả mô phỏng", "Simulation");
+        AddColumn("Thực thi", "Enforcement");
         AddColumn("Lần thấy gần nhất", "Seen");
         grid.SelectionChanged += (_, _) => SetButtons();
     }
@@ -137,6 +144,7 @@ public sealed class AppPolicyPanel : UserControl
                 app.Identity.NormalizedExecutablePath,
                 RuleText(app),
                 SimulationText(app.Decision),
+                app.EnforcementStatus ?? string.Empty,
                 app.LastSeenUtc.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture));
         }
 
@@ -147,6 +155,14 @@ public sealed class AppPolicyPanel : UserControl
                 ? "Không tìm thấy ứng dụng người dùng trong phiên này."
                 : EmptyStateText;
         empty.Visible = visibleObserved.Length == 0;
+        var canUseM2Arming = currentStatus?.TestMode == true;
+        var armed = currentStatus?.Enforcement?.Armed == true;
+        enforcementNotice.Visible = canUseM2Arming;
+        enforcementTitle.Visible = canUseM2Arming;
+        enableEnforcement.Visible = canUseM2Arming;
+        disableEnforcement.Visible = canUseM2Arming;
+        enableEnforcement.Enabled = canUseM2Arming && !armed;
+        disableEnforcement.Enabled = canUseM2Arming && armed;
         scan.Text = discovery is { }
             ? $"Đã quét: {discovery.ProcessesExamined} process; ứng dụng: {discovery.UserApplications}; nền: {discovery.BackgroundHelpers}; hệ thống: {discovery.SystemProtected}; bỏ qua: {discovery.AppsSkippedInaccessible}"
             : string.Empty;
@@ -174,6 +190,13 @@ public sealed class AppPolicyPanel : UserControl
         allow.Enabled = block.Enabled = remove.Enabled = hasSelection;
     }
 
+    private async Task SetEnforcementAsync(bool enabled)
+    {
+        var result = await controller.SendAsync(enabled ? ParentControlAction.EnableM2AppEnforcement : ParentControlAction.DisableM2AppEnforcement);
+        confirmation.Text = result.Success ? (enabled ? "Đã bật chặn thử nghiệm." : "Đã tắt chặn thử nghiệm.") : result.Message;
+        confirmation.ForeColor = result.Success ? Color.DarkGreen : Color.Firebrick;
+        Update(result.Status?.Apps);
+    }
     private async Task ApplyAsync(ParentControlAction action, string verb)
     {
         var app = Selected();

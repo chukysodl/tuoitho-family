@@ -5,7 +5,7 @@
 | TASK-001 | PASS | task/001-bootstrap | 3225628; Actions 34552234667 PASS | not required |
 | TASK-002 | PASS | task/002-time-engine | 6304c03; Actions 34574851490 PASS | not required |
 | TASK-003 | PASS | task/003-device-time-policy | 8d2cad5; Actions 34815667678 PASS | M1 accepted |
-| TASK-004 | IN PROGRESS (TASK-004A complete; M2 manual validation pending) | task/004-app-control | 30186af; Actions 34845213915 PASS | M2 |
+| TASK-004 | IN PROGRESS (TASK-004A PASS — real M2 accepted; TASK-004B1 PASS (safe explicit-block test only)) | task/004-app-control | f94c7b1; Actions 34923733086 PASS | M2 |
 | TASK-005 | PENDING | task/005-parent-dashboard | - | M3 |
 | TASK-006 | PENDING | task/006-web-control | - | yes |
 | TASK-007 | PENDING | task/007-youtube-control | - | M4 |
