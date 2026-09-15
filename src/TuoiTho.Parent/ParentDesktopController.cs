@@ -5,6 +5,7 @@ public sealed record ParentUiResult(bool Success,string Message,ParentControlSta
 public sealed class ParentDesktopController(IParentControlClient client,string profileId,int sessionId)
 {
  public async Task<ParentUiResult> RefreshAsync(CancellationToken token=default)=>await SendAsync(ParentControlAction.GetStatus,minutes:null,token:token);
+ public async Task<ParentUiResult> RefreshAppsAsync(CancellationToken token=default)=>await SendAsync(ParentControlAction.RefreshApps,minutes:null,token:token);
  public async Task<ParentUiResult> SendAsync(ParentControlAction action,int? minutes=null,CancellationToken token=default)
  {
   try{var result=await client.SendAsync(new ParentControlCommand(action,profileId,sessionId,minutes),token);return result.Accepted?new(true,"THÀNH CÔNG",result.Status):new(false,$"TỪ CHỐI: {FriendlyError(result.Error)}",result.Status);}
