@@ -11,7 +11,7 @@ Provide local-first, allowlist-first application policy for one managed child pr
 - `TuoiTho.Service`: discovers executable metadata only from the managed session, classifies it as `UserApplication`, `BackgroundHelper`, or `SystemProtected`, records observations, evaluates the policy, and publishes a simulation result. It performs no process termination or launch prevention in this task.
 - `TuoiTho.Parent`: the `ỨNG DỤNG` tab shows `UserApplication` entries by default, offers an optional background-helper view, never shows `SystemProtected` entries, and provides allow, block, rule removal, refresh, and default-policy visibility.
 
-Identity uses normalized executable path plus filename and optional hash/publisher/product metadata; display text alone is never a rule key. A managed-session process with a visible top-level window is a user-application candidate. Known Windows infrastructure and every foreign session are system-protected; background helpers are allowed for this M2 simulation. `BlockUnknown` applies only to controllable user applications. Explicit block wins, then explicit allow, then the default policy.
+Identity uses normalized executable path plus filename and optional hash/publisher/product metadata; display text alone is never a rule key. A managed-session process with a visible top-level window is a user-application candidate. Known Windows infrastructure, `C:\\Windows\\SystemApps`, every foreign session, and the TuoiTho control plane (including future control tools within the trusted install directory) are system-protected; background helpers are allowed for this M2 simulation. `BlockUnknown` applies only to controllable user applications. Explicit block wins, then explicit allow, then the default policy.
 
 ## Privacy rules
 

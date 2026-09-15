@@ -17,7 +17,7 @@ public sealed record AppDiscoveryResult(DateTimeOffset LastScanAtUtc, int Proces
 
 public interface IManagedSessionAppDiscovery { AppDiscoveryResult Discover(int sessionId); }
 
-public sealed class WindowsManagedSessionAppDiscovery(IClock clock) : IManagedSessionAppDiscovery
+public sealed class WindowsManagedSessionAppDiscovery(IClock clock, string? controlPlaneDirectory = null) : IManagedSessionAppDiscovery
 {
     private static readonly HashSet<string> SystemProtectedFileNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -27,17 +27,48 @@ public sealed class WindowsManagedSessionAppDiscovery(IClock clock) : IManagedSe
 
     private static readonly HashSet<string> KnownInteractiveUserApplicationFileNames = new(StringComparer.OrdinalIgnoreCase) { "calculatorapp.exe" };
 
+    private static readonly HashSet<string> TuoiThoControlPlaneFileNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "TuoiTho.Parent.exe", "TuoiTho.Service.exe", "TuoiTho.SessionAgent.exe"
+    };
+
     public static bool IsManagedSession(int processSessionId, int managedSessionId) => processSessionId == managedSessionId;
 
-    public static AppClassification Classify(string? executablePath, int processSessionId, int managedSessionId, bool hasVisibleTopLevelWindow)
+    public static AppClassification Classify(string? executablePath, int processSessionId, int managedSessionId, bool hasVisibleTopLevelWindow, string? controlPlaneDirectory = null)
     {
         if (!IsManagedSession(processSessionId, managedSessionId)) return AppClassification.SystemProtected;
         var fileName = Path.GetFileName(executablePath ?? string.Empty);
-        if (SystemProtectedFileNames.Contains(fileName)) return AppClassification.SystemProtected;
+        if (IsTuoiThoControlPlaneExecutable(executablePath, fileName, controlPlaneDirectory) || IsWindowsSystemAppsExecutable(executablePath) || SystemProtectedFileNames.Contains(fileName)) return AppClassification.SystemProtected;
         if (hasVisibleTopLevelWindow || KnownInteractiveUserApplicationFileNames.Contains(fileName)) return AppClassification.UserApplication;
         return AppClassification.BackgroundHelper;
     }
 
+    private static bool IsTuoiThoControlPlaneExecutable(string? executablePath, string fileName, string? controlPlaneDirectory)
+    {
+        if (TuoiThoControlPlaneFileNames.Contains(fileName)) return true;
+        var installDirectory = controlPlaneDirectory ?? Environment.GetEnvironmentVariable("TuoiTho__InstallDirectory") ?? AppContext.BaseDirectory;
+        return IsPathWithinDirectory(executablePath, installDirectory);
+    }
+
+    private static bool IsWindowsSystemAppsExecutable(string? executablePath)
+    {
+        var windowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        return IsPathWithinDirectory(executablePath, Path.Combine(windowsDirectory, "SystemApps"));
+    }
+
+    private static bool IsPathWithinDirectory(string? path, string? directory)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(directory)) return false;
+        try
+        {
+            var root = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or System.Security.SecurityException)
+        {
+            return false;
+        }
+    }
     public AppDiscoveryResult Discover(int sessionId)
     {
         var applications = new Dictionary<string, DiscoveredApplication>(StringComparer.OrdinalIgnoreCase);
@@ -63,7 +94,7 @@ public sealed class WindowsManagedSessionAppDiscovery(IClock clock) : IManagedSe
 
                     var info = FileVersionInfo.GetVersionInfo(path);
                     var identity = AppIdentity.FromExecutablePath(path, info.FileDescription, info.CompanyName, info.ProductName);
-                    var classification = Classify(path, process.SessionId, sessionId, visibleProcessIds.Contains(process.Id));
+                    var classification = Classify(path, process.SessionId, sessionId, visibleProcessIds.Contains(process.Id), controlPlaneDirectory);
                     var discovered = new DiscoveredApplication(identity, classification);
                     if (applications.TryGetValue(identity.NormalizedExecutablePath, out var current)) applications[identity.NormalizedExecutablePath] = MoreVisible(current, discovered); else applications.Add(identity.NormalizedExecutablePath, discovered);
                 }
