@@ -1,7 +1,5 @@
 using System.Globalization;
-
 using Microsoft.Data.Sqlite;
-
 using TuoiTho.Storage;
 
 namespace TuoiTho.Tests;
@@ -17,7 +15,6 @@ public sealed class SqliteDatabaseTests
         try
         {
             var database = new SqliteDatabase(databasePath);
-
             await database.InitializeAsync();
             await database.InitializeAsync();
 
@@ -27,17 +24,20 @@ public sealed class SqliteDatabaseTests
                 Assert.Equal(1, await CountTablesAsync(connection, "device_config"));
                 Assert.Equal(1, await CountTablesAsync(connection, "time_usage_daily"));
                 Assert.Equal(1, await CountTablesAsync(connection, "time_tracking_checkpoints"));
+                await using var command = connection.CreateCommand();
+                command.CommandText = "PRAGMA table_info(observed_apps);";
+                await using var columns = await command.ExecuteReaderAsync();
+                var classificationFound = false;
+                while (await columns.ReadAsync()) classificationFound |= string.Equals(columns.GetString(1), "classification", StringComparison.OrdinalIgnoreCase);
+                Assert.True(classificationFound);
             }
 
-            Assert.Equal(4, SqliteDatabase.CurrentSchemaVersion);
+            Assert.Equal(5, SqliteDatabase.CurrentSchemaVersion);
         }
         finally
         {
             SqliteConnection.ClearAllPools();
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
     }
 
@@ -50,22 +50,15 @@ public sealed class SqliteDatabaseTests
         try
         {
             var database = new SqliteDatabase(databasePath);
-
-            await using (var connection = await database.OpenConnectionAsync())
-            await using (var command = connection.CreateCommand())
-            {
-                command.CommandText = "PRAGMA foreign_keys;";
-
-                Assert.Equal(1L, await command.ExecuteScalarAsync());
-            }
+            await using var connection = await database.OpenConnectionAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA foreign_keys;";
+            Assert.Equal(1L, await command.ExecuteScalarAsync());
         }
         finally
         {
             SqliteConnection.ClearAllPools();
-            if (Directory.Exists(directory))
-            {
-                Directory.Delete(directory, recursive: true);
-            }
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
     }
 

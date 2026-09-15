@@ -103,9 +103,9 @@ public sealed class ParentControlService : IDisposable
             var scan = appDiscovery.Discover(policy.ManagedSessionId);
             foreach (var app in scan.Applications)
             {
-                await appPolicies.RecordObservationAsync(new ObservedApp(policy.ProfileId, policy.ManagedSessionId, app, scan.LastScanAtUtc, scan.LastScanAtUtc), token);
+                await appPolicies.RecordObservationAsync(new ObservedApp(policy.ProfileId, policy.ManagedSessionId, app.Identity, scan.LastScanAtUtc, scan.LastScanAtUtc, app.Classification), token);
             }
-            lastAppDiscovery = new ParentAppDiscoveryDiagnostics(scan.LastScanAtUtc, scan.ProcessesExamined, scan.AppsDiscovered, scan.AppsSkippedInaccessible, scan.DiscoveryError);
+            lastAppDiscovery = new ParentAppDiscoveryDiagnostics(scan.LastScanAtUtc, scan.ProcessesExamined, scan.AppsDiscovered, scan.AppsSkippedInaccessible, scan.DiscoveryError, scan.UserApplications, scan.BackgroundHelpers, scan.SystemProtected);
             return new(scan.DiscoveryError is null, scan.DiscoveryError is null ? null : "DISCOVERY_FAILED", policy, await StatusAsync(policy, token));
         }
         catch (Exception exception)
@@ -179,7 +179,7 @@ public sealed class ParentControlService : IDisposable
             var defaultAppPolicy = await appPolicies.GetDefaultPolicyAsync(policy.ProfileId, token);
             var rules = await appPolicies.GetRulesAsync(policy.ProfileId, token);
             var observed = await appPolicies.GetObservedAppsAsync(policy.ProfileId, policy.ManagedSessionId, token);
-            apps = new ParentAppControlStatus(defaultAppPolicy, observed.Select(a => { var evaluation = AppPolicyEngine.Evaluate(a.Identity, rules, defaultAppPolicy); return new ParentObservedApp(a.Identity, evaluation.Decision, evaluation.Reason, a.LastSeenUtc); }).ToArray(), lastAppDiscovery);
+            apps = new ParentAppControlStatus(defaultAppPolicy, observed.Select(a => { var explicitRule = rules.FirstOrDefault(rule => rule.Enabled && string.Equals(rule.Identity.NormalizedExecutablePath, a.Identity.NormalizedExecutablePath, StringComparison.OrdinalIgnoreCase))?.Decision; var evaluation = AppPolicyEngine.Evaluate(a.Identity, rules, defaultAppPolicy, a.Classification); return new ParentObservedApp(a.Identity, a.Classification, evaluation.Decision, evaluation.Reason, a.LastSeenUtc, explicitRule); }).ToArray(), lastAppDiscovery);
         }
         return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps);
     }

@@ -4,7 +4,7 @@ internal sealed record Migration(string Id, string Sql);
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 4;
+    public const int CurrentVersion = 5;
 
     public static IReadOnlyList<Migration> Migrations { get; } =
     [
@@ -135,6 +135,11 @@ internal static class SqliteSchema
                 PRIMARY KEY (profile_id, normalized_executable_path)
             );
             CREATE INDEX IF NOT EXISTS ix_observed_apps_profile_session ON observed_apps (profile_id, session_id);
+            """),
+        new Migration(
+            "0005-app-observation-classification",
+            """
+            ALTER TABLE observed_apps ADD COLUMN classification TEXT NOT NULL DEFAULT 'BackgroundHelper';
             """)
     ];
 }
