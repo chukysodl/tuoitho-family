@@ -49,6 +49,18 @@ The worker polls at a bounded one-second interval. It re-verifies managed sessio
 
 On the real M2 test session, Calculator stayed open with the switch off, closed when its explicit rule was armed, closed again on relaunch while armed, and stayed open again after disarming. Explicitly allowed Notepad stayed open while the switch was armed. The test finished by disarming the switch and stopping only the tracked M1 components.
 
+## TASK-004B1 closeout
+
+TASK-004B1 PASS — real user acceptance at `1172747`. The exact-PID explicit-block proof completed with TestMode still enabled; it does not authorize broad or deny-by-default enforcement.
+
+## TASK-004B2 safe allowlist test mode
+
+Allowlist-first enforcement is volatile and TestMode-only. It starts OFF after every Service restart, must be armed by an authenticated Parent through the secured pipe, and expires automatically after ten minutes. Arming performs a fresh managed-session scan and refuses while a visible user app remains unreviewed. The TestMode-only bulk action creates ALLOW rules only for currently running `UserApplication` identities and never replaces explicit BLOCK rules or changes protected/background items. Recovery consoles, the TuoiTho control plane, system processes, and foreign sessions are always excluded. Every candidate is re-verified by PID, path, session, classification, and current rule; repository uncertainty disarms enforcement. Audit data stays limited to timestamp, profile, session, executable identity, policy decision, and action.
+
+## TASK-004B2 real M2 proof
+
+The real TestMode flow began with enforcement OFF. A fresh managed-session scan bulk-approved 12 current user applications, retained an explicit ALLOW for Notepad and an explicit BLOCK for Calculator, then armed the ten-minute lease. Notepad remained open; Calculator closed; a newly launched unknown Paint process closed; PowerShell remained available. After authenticated disarm, Paint remained open. M1 STOP then stopped only tracked components and never disabled TestMode.
+
 ## M1 recovery safety follow-up
 
 For m1-child with TestMode=true, the visual soft-lock overlay includes a DPI-safe, centered recovery panel. It can foreground/start the colocated local Parent UI or hide the visual overlay with F12; neither path modifies policy state or persisted data. The same unchanged deny state stays visually dismissed until the policy becomes allowed and later denies again.

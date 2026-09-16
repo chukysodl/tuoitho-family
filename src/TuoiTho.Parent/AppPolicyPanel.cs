@@ -31,10 +31,12 @@ public sealed class AppPolicyPanel : UserControl
     private readonly Label scan = new() { AutoSize = true, Padding = new Padding(4) };
     private readonly Label confirmation = new() { AutoSize = true, Padding = new Padding(4) };
     private readonly CheckBox showBackground = new() { Text = "Hiển thị ứng dụng nền", AutoSize = true };
-    private readonly Label enforcementTitle = new() { Text = "REAL APP BLOCKING (M2 TEST)", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Padding = new Padding(8, 4, 0, 0), Visible = false };
-    private readonly Label enforcementNotice = new() { Text = "CHẾ ĐỘ THỬ NGHIỆM: chỉ ứng dụng được đánh dấu CHẶN mới bị đóng.", AutoSize = true, ForeColor = Color.DarkOrange, Padding = new Padding(4), Visible = false };
-    private readonly Button enableEnforcement = new() { Text = "Bật chặn thử nghiệm", AutoSize = true, Visible = false };
-    private readonly Button disableEnforcement = new() { Text = "Tắt chặn thử nghiệm", AutoSize = true, Visible = false };
+    private readonly Label enforcementTitle = new() { Text = "DANH SÁCH CHO PHÉP: TẮT", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Padding = new Padding(8, 4, 0, 0), Visible = false };
+    private readonly Label enforcementNotice = new() { Text = "CHẾ ĐỘ M2:\r\nChỉ ứng dụng đã được phụ huynh cho phép mới được chạy.", AutoSize = true, ForeColor = Color.DarkOrange, Padding = new Padding(4), Visible = false };
+    private readonly Button enableEnforcement = new() { Text = "Bật danh sách cho phép thử nghiệm", AutoSize = true, Visible = false };
+    private readonly Button disableEnforcement = new() { Text = "Tắt danh sách cho phép thử nghiệm", AutoSize = true, Visible = false };
+    private readonly Button bulkAllow = new() { Text = "Cho phép các ứng dụng đang mở", AutoSize = true, Visible = false };
+    private readonly Label lease = new() { AutoSize = true, Padding = new Padding(4), ForeColor = Color.DarkOrange, Visible = false };
     private readonly Button allow = new() { Text = "✓ Cho phép", Enabled = false, AutoSize = true };
     private readonly Button block = new() { Text = "⛔ Chặn", Enabled = false, AutoSize = true };
     private readonly Button remove = new() { Text = "Xóa quy tắc", Enabled = false, AutoSize = true };
@@ -58,13 +60,14 @@ public sealed class AppPolicyPanel : UserControl
         var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = true };
         var refresh = new Button { Text = "Làm mới danh sách", AutoSize = true };
         refresh.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
+        bulkAllow.Click += async (_, _) => await BulkAllowAsync();
         allow.Click += async (_, _) => await ApplyAsync(ParentControlAction.AllowApp, "Đã cho phép");
         block.Click += async (_, _) => await ApplyAsync(ParentControlAction.BlockApp, "Đã chặn");
         remove.Click += async (_, _) => await ApplyAsync(ParentControlAction.RemoveAppRule, "Đã xóa quy tắc của");
         showBackground.CheckedChanged += (_, _) => Render();
         enableEnforcement.Click += async (_, _) => await SetEnforcementAsync(true);
         disableEnforcement.Click += async (_, _) => await SetEnforcementAsync(false);
-        actions.Controls.AddRange([refresh, allow, block, remove, showBackground, enforcementTitle, enableEnforcement, disableEnforcement, enforcementNotice, scan, confirmation]);
+        actions.Controls.AddRange([refresh, allow, block, remove, showBackground, bulkAllow, enforcementTitle, enableEnforcement, disableEnforcement, enforcementNotice, lease, scan, confirmation]);
         root.Controls.Add(actions, 0, 2);
 
         var holder = new Panel { Dock = DockStyle.Fill };
@@ -157,12 +160,17 @@ public sealed class AppPolicyPanel : UserControl
         empty.Visible = visibleObserved.Length == 0;
         var canUseM2Arming = currentStatus?.TestMode == true;
         var armed = currentStatus?.Enforcement?.Armed == true;
+        var allowlist = currentStatus?.Enforcement?.Mode == AppEnforcementMode.AllowlistProduction;
         enforcementNotice.Visible = canUseM2Arming;
         enforcementTitle.Visible = canUseM2Arming;
         enableEnforcement.Visible = canUseM2Arming;
         disableEnforcement.Visible = canUseM2Arming;
+        bulkAllow.Visible = canUseM2Arming;
         enableEnforcement.Enabled = canUseM2Arming && !armed;
         disableEnforcement.Enabled = canUseM2Arming && armed;
+        enforcementTitle.Text = armed && allowlist ? "DANH SÁCH CHO PHÉP: ĐANG BẬT" : "DANH SÁCH CHO PHÉP: TẮT";
+        lease.Visible = armed && allowlist;
+        lease.Text = lease.Visible ? $"Thời gian an toàn còn lại: {TimeSpan.FromSeconds(currentStatus?.Enforcement?.LeaseRemainingSeconds ?? 0):mm\\:ss}" : string.Empty;
         scan.Text = discovery is { }
             ? $"Đã quét: {discovery.ProcessesExamined} process; ứng dụng: {discovery.UserApplications}; nền: {discovery.BackgroundHelpers}; hệ thống: {discovery.SystemProtected}; bỏ qua: {discovery.AppsSkippedInaccessible}"
             : string.Empty;
@@ -192,11 +200,19 @@ public sealed class AppPolicyPanel : UserControl
 
     private async Task SetEnforcementAsync(bool enabled)
     {
-        var result = await controller.SendAsync(enabled ? ParentControlAction.EnableM2AppEnforcement : ParentControlAction.DisableM2AppEnforcement);
-        confirmation.Text = result.Success ? (enabled ? "Đã bật chặn thử nghiệm." : "Đã tắt chặn thử nghiệm.") : result.Message;
+        var result = await controller.SendAsync(enabled ? ParentControlAction.EnableM2AllowlistEnforcement : ParentControlAction.DisableM2AllowlistEnforcement);
+        confirmation.Text = result.Success ? result.Message : result.Message;
         confirmation.ForeColor = result.Success ? Color.DarkGreen : Color.Firebrick;
         Update(result.Status?.Apps);
     }
+    private async Task BulkAllowAsync()
+    {
+        var result = await controller.SendAsync(ParentControlAction.BulkAllowRunningApps);
+        confirmation.Text = result.Message;
+        confirmation.ForeColor = result.Success ? Color.DarkGreen : Color.Firebrick;
+        Update(result.Status?.Apps);
+    }
+
     private async Task ApplyAsync(ParentControlAction action, string verb)
     {
         var app = Selected();

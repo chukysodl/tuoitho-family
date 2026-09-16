@@ -5,6 +5,7 @@ namespace TuoiTho.Service;
 
 public sealed class ParentControlService : IDisposable
 {
+    private static readonly TimeSpan M2TestSafetyLease = TimeSpan.FromMinutes(10);
     private readonly IDeviceTimePolicyStore store;
     private readonly ITimeUsageStore usage;
     private readonly IClock clock;
@@ -21,29 +22,15 @@ public sealed class ParentControlService : IDisposable
     private ParentAppDiscoveryDiagnostics? lastAppDiscovery;
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
-    public ParentControlService(
-        IDeviceTimePolicyStore store,
-        ITimeUsageStore usage,
-        IClock clock,
-        DeviceTimePolicyEngine engine,
-        PolicyChangeSignal changes,
-        ActivitySampleCache? activityCache = null,
-        WindowsSessionEventSource? sessionEventSource = null,
-        SessionTimeEngine? timeEngine = null, IAppPolicyStore? appPolicies = null, AppPolicyEngine? appPolicyEngine = null, IManagedSessionAppDiscovery? appDiscovery = null, AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null)
+    public ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes,
+        ActivitySampleCache? activityCache = null, WindowsSessionEventSource? sessionEventSource = null, SessionTimeEngine? timeEngine = null,
+        IAppPolicyStore? appPolicies = null, AppPolicyEngine? appPolicyEngine = null, IManagedSessionAppDiscovery? appDiscovery = null,
+        AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null)
     {
-        this.store = store;
-        this.usage = usage;
-        this.clock = clock;
-        this.engine = engine;
-        this.changes = changes;
-        this.activityCache = activityCache;
-        this.sessionEventSource = sessionEventSource;
-        this.timeEngine = timeEngine;
-        this.appPolicies = appPolicies;
-        this.appPolicyEngine = appPolicyEngine;
-        this.appDiscovery = appDiscovery;
-        this.appEnforcement = appEnforcement;
-        this.appEnforcementAudit = appEnforcementAudit;
+        this.store = store; this.usage = usage; this.clock = clock; this.engine = engine; this.changes = changes;
+        this.activityCache = activityCache; this.sessionEventSource = sessionEventSource; this.timeEngine = timeEngine;
+        this.appPolicies = appPolicies; this.appPolicyEngine = appPolicyEngine; this.appDiscovery = appDiscovery;
+        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit;
     }
 
     public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes)
@@ -68,18 +55,19 @@ public sealed class ParentControlService : IDisposable
             if (policy is null || policy.ManagedSessionId != command.ManagedSessionId) return new(false, "PROFILE_OR_SESSION_MISMATCH");
             if (command.Action is ParentControlAction.GetStatus or ParentControlAction.GetApps) return new(true, null, policy, await StatusAsync(policy, token));
             if (command.Action == ParentControlAction.RefreshApps) return await RefreshAppsAsync(policy, token);
-            if (command.Action is ParentControlAction.EnableM2AppEnforcement or ParentControlAction.DisableM2AppEnforcement) return await SetM2AppEnforcementAsync(command.Action == ParentControlAction.EnableM2AppEnforcement, policy, token);
+            if (command.Action is ParentControlAction.EnableM2AppEnforcement or ParentControlAction.DisableM2AppEnforcement) return await SetExplicitBlockOnlyAsync(command.Action == ParentControlAction.EnableM2AppEnforcement, policy, token);
+            if (command.Action is ParentControlAction.EnableM2AllowlistEnforcement or ParentControlAction.DisableM2AllowlistEnforcement) return await SetAllowlistAsync(command.Action == ParentControlAction.EnableM2AllowlistEnforcement, policy, token);
+            if (command.Action == ParentControlAction.BulkAllowRunningApps) return await BulkAllowRunningAppsAsync(policy, token);
             if (command.Action is ParentControlAction.AllowApp or ParentControlAction.BlockApp or ParentControlAction.RemoveAppRule) return await ExecuteAppAsync(command, policy, token);
             if (command.Action == ParentControlAction.ResetM1)
             {
                 if (!policy.TestMode || policy.ProfileId != "m1-child") return new(false, "M1_RESET_NOT_ALLOWED");
-                appEnforcement?.SetArmed(false);
+                appEnforcement?.Disarm();
                 var date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.UtcNow, clock.LocalTimeZone).DateTime);
                 await ResetM1UsageAndRuntimeAsync(policy.ProfileId, date, token);
                 await store.ClearGrantsAsync(policy.ProfileId, token);
                 policy = policy with { DailyQuotaMinutes = 3, ParentOverride = false, ParentLock = false, TestMode = true };
-                await store.SaveAsync(policy, token);
-                changes.Notify();
+                await store.SaveAsync(policy, token); changes.Notify();
                 return new(true, null, policy, await StatusAsync(policy, token));
             }
             switch (command.Action)
@@ -95,31 +83,69 @@ public sealed class ParentControlService : IDisposable
             }
             await store.SaveAsync(policy, token); changes.Notify(); return new(true, null, policy, await StatusAsync(policy, token));
         }
-        finally
-        {
-            commandGate.Release();
-        }
+        finally { commandGate.Release(); }
     }
 
-    private async Task<ParentControlResult> SetM2AppEnforcementAsync(bool enabled, DeviceTimePolicy policy, CancellationToken token)
+    private async Task<ParentControlResult> SetExplicitBlockOnlyAsync(bool enabled, DeviceTimePolicy policy, CancellationToken token)
     {
         if (!policy.TestMode || appEnforcement is null || appEnforcementAudit is null) return new(false, "APP_ENFORCEMENT_TESTMODE_REQUIRED", policy, await StatusAsync(policy, token));
         appEnforcement.SetArmed(enabled);
-        appEnforcementAudit.Record(new AppEnforcementAuditEvent(clock.UtcNow, policy.ProfileId, policy.ManagedSessionId, string.Empty, "EXPLICIT_BLOCK_ONLY", enabled ? AppEnforcementAuditAction.EnforcementOn : AppEnforcementAuditAction.EnforcementOff));
+        RecordEnforcement(policy, "EXPLICIT_BLOCK_ONLY", enabled ? AppEnforcementAuditAction.EnforcementOn : AppEnforcementAuditAction.EnforcementOff);
         changes.Notify();
         return new(true, null, policy, await StatusAsync(policy, token));
     }
+
+    private async Task<ParentControlResult> SetAllowlistAsync(bool enabled, DeviceTimePolicy policy, CancellationToken token)
+    {
+        if (!policy.TestMode || appEnforcement is null || appEnforcementAudit is null) return new(false, "APP_ENFORCEMENT_TESTMODE_REQUIRED", policy, await StatusAsync(policy, token));
+        if (!enabled)
+        {
+            appEnforcement.Disarm();
+            RecordEnforcement(policy, "ALLOWLIST_TESTMODE", AppEnforcementAuditAction.EnforcementOff);
+            changes.Notify();
+            return new(true, null, policy, await StatusAsync(policy, token), "Đã tắt danh sách cho phép thử nghiệm.");
+        }
+
+        var scan = await ScanAndPersistAsync(policy, token);
+        if (scan.DiscoveryError is not null) return new(false, "DISCOVERY_FAILED", policy, await StatusAsync(policy, token));
+        var rules = await appPolicies!.GetRulesAsync(policy.ProfileId, token);
+        var unresolved = scan.Applications.Where(app => app.Classification == AppClassification.UserApplication)
+            .Where(app => !rules.Any(rule => rule.Enabled && string.Equals(rule.Identity.NormalizedExecutablePath, app.Identity.NormalizedExecutablePath, StringComparison.OrdinalIgnoreCase)))
+            .Select(app => app.Identity.DisplayLabel).Distinct(StringComparer.CurrentCultureIgnoreCase).ToArray();
+        if (unresolved.Length > 0)
+        {
+            var message = $"Còn {unresolved.Length} ứng dụng đang mở chưa được duyệt. Hãy Cho phép/Chặn chúng trước hoặc dùng ‘Cho phép các ứng dụng đang mở’.";
+            return new(false, "ALLOWLIST_PREFLIGHT_UNRESOLVED", policy, await StatusAsync(policy, token), message);
+        }
+        appEnforcement.ArmAllowlistForTest(clock.UtcNow, M2TestSafetyLease);
+        RecordEnforcement(policy, "ALLOWLIST_TESTMODE", AppEnforcementAuditAction.EnforcementOn);
+        changes.Notify();
+        return new(true, null, policy, await StatusAsync(policy, token), "Đã bật danh sách cho phép thử nghiệm trong 10 phút.");
+    }
+
+    private async Task<ParentControlResult> BulkAllowRunningAppsAsync(DeviceTimePolicy policy, CancellationToken token)
+    {
+        if (!policy.TestMode || appPolicies is null || appDiscovery is null) return new(false, "APP_ENFORCEMENT_TESTMODE_REQUIRED", policy, await StatusAsync(policy, token));
+        var scan = await ScanAndPersistAsync(policy, token);
+        if (scan.DiscoveryError is not null) return new(false, "DISCOVERY_FAILED", policy, await StatusAsync(policy, token));
+        var rules = await appPolicies.GetRulesAsync(policy.ProfileId, token);
+        var added = new List<string>();
+        foreach (var app in scan.Applications.Where(item => item.Classification == AppClassification.UserApplication))
+        {
+            if (rules.Any(rule => rule.Enabled && string.Equals(rule.Identity.NormalizedExecutablePath, app.Identity.NormalizedExecutablePath, StringComparison.OrdinalIgnoreCase))) continue;
+            await appPolicies.SaveRuleAsync(new AppRule(policy.ProfileId, app.Identity, AppRuleDecision.Allow), token);
+            added.Add(app.Identity.DisplayLabel);
+        }
+        changes.Notify();
+        var detail = added.Count == 0 ? "Không có ứng dụng đang mở nào cần cho phép thêm." : $"Đã cho phép {added.Count} ứng dụng: {string.Join(", ", added)}.";
+        return new(true, null, policy, await StatusAsync(policy, token), detail);
+    }
+
     private async Task<ParentControlResult> RefreshAppsAsync(DeviceTimePolicy policy, CancellationToken token)
     {
-        if (appPolicies is null || appDiscovery is null) return new(false, "DISCOVERY_UNAVAILABLE");
         try
         {
-            var scan = appDiscovery.Discover(policy.ManagedSessionId);
-            foreach (var app in scan.Applications)
-            {
-                await appPolicies.RecordObservationAsync(new ObservedApp(policy.ProfileId, policy.ManagedSessionId, app.Identity, scan.LastScanAtUtc, scan.LastScanAtUtc, app.Classification), token);
-            }
-            lastAppDiscovery = new ParentAppDiscoveryDiagnostics(scan.LastScanAtUtc, scan.ProcessesExamined, scan.AppsDiscovered, scan.AppsSkippedInaccessible, scan.DiscoveryError, scan.UserApplications, scan.BackgroundHelpers, scan.SystemProtected);
+            var scan = await ScanAndPersistAsync(policy, token);
             return new(scan.DiscoveryError is null, scan.DiscoveryError is null ? null : "DISCOVERY_FAILED", policy, await StatusAsync(policy, token));
         }
         catch (Exception exception)
@@ -128,48 +154,33 @@ public sealed class ParentControlService : IDisposable
             return new(false, "DISCOVERY_FAILED", policy, await StatusAsync(policy, token));
         }
     }
+
+    private async Task<AppDiscoveryResult> ScanAndPersistAsync(DeviceTimePolicy policy, CancellationToken token)
+    {
+        if (appPolicies is null || appDiscovery is null) throw new InvalidOperationException("App discovery is unavailable.");
+        var scan = appDiscovery.Discover(policy.ManagedSessionId);
+        foreach (var app in scan.Applications)
+            await appPolicies.RecordObservationAsync(new ObservedApp(policy.ProfileId, policy.ManagedSessionId, app.Identity, scan.LastScanAtUtc, scan.LastScanAtUtc, app.Classification), token);
+        lastAppDiscovery = new ParentAppDiscoveryDiagnostics(scan.LastScanAtUtc, scan.ProcessesExamined, scan.AppsDiscovered, scan.AppsSkippedInaccessible, scan.DiscoveryError, scan.UserApplications, scan.BackgroundHelpers, scan.SystemProtected);
+        return scan;
+    }
+
     private async Task<ParentControlResult> ExecuteAppAsync(ParentControlCommand command, DeviceTimePolicy policy, CancellationToken token)
     {
-        if (appPolicies is null || appPolicyEngine is null || command.Application is null) return new(false, "INVALID_APP_COMMAND");
-        if (command.Application.NormalizedExecutablePath.Length == 0) return new(false, "INVALID_APP_COMMAND");
+        if (appPolicies is null || appPolicyEngine is null || command.Application is null || command.Application.NormalizedExecutablePath.Length == 0) return new(false, "INVALID_APP_COMMAND");
         if (command.Action == ParentControlAction.RemoveAppRule) await appPolicies.RemoveRuleAsync(policy.ProfileId, command.Application, token);
         else await appPolicies.SaveRuleAsync(new AppRule(policy.ProfileId, command.Application, command.Action == ParentControlAction.AllowApp ? AppRuleDecision.Allow : AppRuleDecision.Block), token);
-        changes.Notify();
-        return new(true, null, policy, await StatusAsync(policy, token));
+        changes.Notify(); return new(true, null, policy, await StatusAsync(policy, token));
     }
+
     private async Task ResetM1UsageAndRuntimeAsync(string profileId, DateOnly date, CancellationToken token)
     {
-        if (timeEngine is not null && await timeEngine.ResetForM1Async(date, () => sessionEventSource?.ReinitializeForM1Reset(), token))
-        {
-            return;
-        }
-
-        // The tracking host is not running yet. Advance the persisted baseline now so startup cannot recover a pre-reset interval.
+        if (timeEngine is not null && await timeEngine.ResetForM1Async(date, () => sessionEventSource?.ReinitializeForM1Reset(), token)) return;
         var snapshot = sessionEventSource?.ReinitializeForM1Reset();
-        var persistedCheckpoint = snapshot is null
-            ? await usage.LoadCheckpointAsync(profileId, token)
-            : null;
-        if (snapshot is not null)
-        {
-            await usage.ResetUsageAndSaveCheckpointAsync(profileId, date, new TimeTrackingCheckpoint(
-                snapshot.SessionId,
-                snapshot.State,
-                snapshot.OccurredAtUtc,
-                snapshot.BootStartedAtUtc), token);
-        }
-        else if (persistedCheckpoint is not null)
-        {
-            var baseline = new TimeTrackingCheckpoint(
-                persistedCheckpoint.SessionId,
-                persistedCheckpoint.State,
-                clock.UtcNow,
-                persistedCheckpoint.BootStartedAtUtc);
-            await usage.ResetUsageAndSaveCheckpointAsync(profileId, date, baseline, token);
-        }
-        else
-        {
-            await usage.ResetUsageAsync(profileId, date, token);
-        }
+        var persistedCheckpoint = snapshot is null ? await usage.LoadCheckpointAsync(profileId, token) : null;
+        if (snapshot is not null) await usage.ResetUsageAndSaveCheckpointAsync(profileId, date, new TimeTrackingCheckpoint(snapshot.SessionId, snapshot.State, snapshot.OccurredAtUtc, snapshot.BootStartedAtUtc), token);
+        else if (persistedCheckpoint is not null) await usage.ResetUsageAndSaveCheckpointAsync(profileId, date, new TimeTrackingCheckpoint(persistedCheckpoint.SessionId, persistedCheckpoint.State, clock.UtcNow, persistedCheckpoint.BootStartedAtUtc), token);
+        else await usage.ResetUsageAsync(profileId, date, token);
     }
 
     private async Task<ParentControlStatus> StatusAsync(DeviceTimePolicy policy, CancellationToken token)
@@ -193,19 +204,30 @@ public sealed class ParentControlService : IDisposable
             var defaultAppPolicy = await appPolicies.GetDefaultPolicyAsync(policy.ProfileId, token);
             var rules = await appPolicies.GetRulesAsync(policy.ProfileId, token);
             var observed = await appPolicies.GetObservedAppsAsync(policy.ProfileId, policy.ManagedSessionId, token);
-            var enforcement = new ParentAppEnforcementStatus(appEnforcement?.Mode ?? AppEnforcementMode.Simulation, appEnforcement?.IsArmed ?? false, appEnforcementAudit?.Latest); apps = new ParentAppControlStatus(defaultAppPolicy, observed.Select(a => { var explicitRule = rules.FirstOrDefault(rule => rule.Enabled && string.Equals(rule.Identity.NormalizedExecutablePath, a.Identity.NormalizedExecutablePath, StringComparison.OrdinalIgnoreCase))?.Decision; var evaluation = AppPolicyEngine.Evaluate(a.Identity, rules, defaultAppPolicy, a.Classification); return new ParentObservedApp(a.Identity, a.Classification, evaluation.Decision, evaluation.Reason, a.LastSeenUtc, explicitRule, AppEnforcementText(a.Classification, explicitRule, enforcement)); }).ToArray(), lastAppDiscovery, enforcement, policy.TestMode);
+            var enforcementRuntime = appEnforcement?.Snapshot(clock.UtcNow) ?? new AppEnforcementRuntimeState(AppEnforcementMode.Simulation, null);
+            int? leaseSeconds = enforcementRuntime.LeaseExpiresAtUtc is { } expiry ? Math.Max(0, (int)Math.Ceiling((expiry - clock.UtcNow).TotalSeconds)) : null;
+            var enforcement = new ParentAppEnforcementStatus(enforcementRuntime.Mode, enforcementRuntime.Armed, appEnforcementAudit?.Latest, enforcementRuntime.LeaseExpiresAtUtc, leaseSeconds);
+            apps = new ParentAppControlStatus(defaultAppPolicy, observed.Select(a =>
+            {
+                var explicitRule = rules.FirstOrDefault(rule => rule.Enabled && string.Equals(rule.Identity.NormalizedExecutablePath, a.Identity.NormalizedExecutablePath, StringComparison.OrdinalIgnoreCase))?.Decision;
+                var evaluation = AppPolicyEngine.Evaluate(a.Identity, rules, defaultAppPolicy, a.Classification);
+                return new ParentObservedApp(a.Identity, a.Classification, evaluation.Decision, evaluation.Reason, a.LastSeenUtc, explicitRule, AppEnforcementText(a.Classification, explicitRule, enforcement));
+            }).ToArray(), lastAppDiscovery, enforcement, policy.TestMode);
         }
         return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps);
     }
+
+    private void RecordEnforcement(DeviceTimePolicy policy, string decision, AppEnforcementAuditAction action)
+        => appEnforcementAudit?.Record(new AppEnforcementAuditEvent(clock.UtcNow, policy.ProfileId, policy.ManagedSessionId, string.Empty, decision, action));
 
     public void Dispose() => commandGate.Dispose();
 
     private static string AppEnforcementText(AppClassification classification, AppRuleDecision? explicitRule, ParentAppEnforcementStatus enforcement)
     {
         if (classification != AppClassification.UserApplication) return "ĐƯỢC BẢO VỆ";
-        if (explicitRule == AppRuleDecision.Block) return enforcement.Armed ? "ĐANG CHẶN" : "ĐÃ CHẶN — CHƯA BẬT THỰC THI";
         if (explicitRule == AppRuleDecision.Allow) return "ĐƯỢC PHÉP";
-        return "CHƯA DUYỆT — TẠM CHO PHÉP KHI THỬ NGHIỆM";
+        if (explicitRule == AppRuleDecision.Block) return enforcement.Armed ? "BỊ CHẶN BỞI PHỤ HUYNH" : "CHẶN — CHƯA BẬT THỰC THI";
+        return enforcement.Mode == AppEnforcementMode.AllowlistProduction && enforcement.Armed ? "CHƯA ĐƯỢC CHO PHÉP — BỊ CHẶN" : "CHƯA DUYỆT — CHƯA BẬT THỰC THI";
     }
     private static DateTimeOffset EndOfLocalDay(DateTimeOffset utc, TimeZoneInfo zone) { var local = TimeZoneInfo.ConvertTime(utc, zone); var next = local.Date.AddDays(1); return new DateTimeOffset(next, zone.GetUtcOffset(next)).ToUniversalTime(); }
 }

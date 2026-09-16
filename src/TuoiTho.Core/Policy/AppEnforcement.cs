@@ -28,4 +28,6 @@ public sealed record AppEnforcementAuditEvent(
 public sealed record ParentAppEnforcementStatus(
     AppEnforcementMode Mode,
     bool Armed,
-    AppEnforcementAuditEvent? LastEvent = null);
+    AppEnforcementAuditEvent? LastEvent = null,
+    DateTimeOffset? LeaseExpiresAtUtc = null,
+    int? LeaseRemainingSeconds = null);
