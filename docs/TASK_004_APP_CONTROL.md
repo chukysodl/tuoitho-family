@@ -61,6 +61,10 @@ Allowlist-first enforcement is volatile and TestMode-only. It starts OFF after e
 
 The real TestMode flow began with enforcement OFF. A fresh managed-session scan bulk-approved 12 current user applications, retained an explicit ALLOW for Notepad and an explicit BLOCK for Calculator, then armed the ten-minute lease. Notepad remained open; Calculator closed; a newly launched unknown Paint process closed; PowerShell remained available. After authenticated disarm, Paint remained open. M1 STOP then stopped only tracked components and never disabled TestMode.
 
+## TASK-004B2A Parent IPC resilience
+
+The local Parent pipe client now uses a bounded five-second connection wait. The desktop controller serializes all status, app-policy, grant, and allowlist requests and converts expected timeout, I/O, authorization, cancellation, and JSON failures into one Vietnamese status-bar message. Auto-refresh does not queue while a prior tick or a manual action is running, and one refresh follows each completed manual action.
+
 ## M1 recovery safety follow-up
 
 For m1-child with TestMode=true, the visual soft-lock overlay includes a DPI-safe, centered recovery panel. It can foreground/start the colocated local Parent UI or hide the visual overlay with F12; neither path modifies policy state or persisted data. The same unchanged deny state stays visually dismissed until the policy becomes allowed and later denies again.

@@ -60,13 +60,13 @@ public sealed class AppPolicyPanel : UserControl
         var actions = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Fill, WrapContents = true };
         var refresh = new Button { Text = "Làm mới danh sách", AutoSize = true };
         refresh.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
-        bulkAllow.Click += async (_, _) => await BulkAllowAsync();
-        allow.Click += async (_, _) => await ApplyAsync(ParentControlAction.AllowApp, "Đã cho phép");
-        block.Click += async (_, _) => await ApplyAsync(ParentControlAction.BlockApp, "Đã chặn");
-        remove.Click += async (_, _) => await ApplyAsync(ParentControlAction.RemoveAppRule, "Đã xóa quy tắc của");
+        bulkAllow.Click += async (_, _) => await RunManualAsync(BulkAllowAsync);
+        allow.Click += async (_, _) => await RunManualAsync(() => ApplyAsync(ParentControlAction.AllowApp, "Đã cho phép"));
+        block.Click += async (_, _) => await RunManualAsync(() => ApplyAsync(ParentControlAction.BlockApp, "Đã chặn"));
+        remove.Click += async (_, _) => await RunManualAsync(() => ApplyAsync(ParentControlAction.RemoveAppRule, "Đã xóa quy tắc của"));
         showBackground.CheckedChanged += (_, _) => Render();
-        enableEnforcement.Click += async (_, _) => await SetEnforcementAsync(true);
-        disableEnforcement.Click += async (_, _) => await SetEnforcementAsync(false);
+        enableEnforcement.Click += async (_, _) => await RunManualAsync(() => SetEnforcementAsync(true));
+        disableEnforcement.Click += async (_, _) => await RunManualAsync(() => SetEnforcementAsync(false));
         actions.Controls.AddRange([refresh, allow, block, remove, showBackground, bulkAllow, enforcementTitle, enableEnforcement, disableEnforcement, enforcementNotice, lease, scan, confirmation]);
         root.Controls.Add(actions, 0, 2);
 
@@ -85,6 +85,8 @@ public sealed class AppPolicyPanel : UserControl
     }
 
     public event EventHandler? RefreshRequested;
+    public event EventHandler? ManualActionStarting;
+    public event EventHandler? ManualActionCompleted;
     public static string EmptyStateText => "Chưa phát hiện ứng dụng nào.\r\n\r\nBạn hãy mở một ứng dụng trên máy, sau đó bấm ‘Làm mới danh sách’.";
     public bool ActionsEnabled => allow.Enabled && block.Enabled && remove.Enabled;
     public int VisibleAppCount => visibleObserved.Length;
@@ -196,6 +198,13 @@ public sealed class AppPolicyPanel : UserControl
     {
         var hasSelection = Selected() is not null;
         allow.Enabled = block.Enabled = remove.Enabled = hasSelection;
+    }
+
+    private async Task RunManualAsync(Func<Task> action)
+    {
+        ManualActionStarting?.Invoke(this, EventArgs.Empty);
+        try { await action(); }
+        finally { ManualActionCompleted?.Invoke(this, EventArgs.Empty); }
     }
 
     private async Task SetEnforcementAsync(bool enabled)
