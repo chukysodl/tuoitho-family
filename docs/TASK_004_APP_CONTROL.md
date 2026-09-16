@@ -48,3 +48,7 @@ The worker polls at a bounded one-second interval. It re-verifies managed sessio
 ## TASK-004B1 M2 proof
 
 On the real M2 test session, Calculator stayed open with the switch off, closed when its explicit rule was armed, closed again on relaunch while armed, and stayed open again after disarming. Explicitly allowed Notepad stayed open while the switch was armed. The test finished by disarming the switch and stopping only the tracked M1 components.
+
+## M1 recovery safety follow-up
+
+For m1-child with TestMode=true, the visual soft-lock overlay includes a DPI-safe, centered recovery panel. It can foreground/start the colocated local Parent UI or hide the visual overlay with F12; neither path modifies policy state or persisted data. The same unchanged deny state stays visually dismissed until the policy becomes allowed and later denies again.

@@ -41,6 +41,7 @@ public sealed class SessionAgentRuntimeTests
     {
         public List<ChildSoftLockState> Shown { get; } = [];
         public event Action? EmergencyExitRequested { add { } remove { } }
+        public event Action? ParentControlRequested { add { } remove { } }
         public void Show(ChildSoftLockState state) => Shown.Add(state);
         public void Hide() { }
         public void Dispose() { }

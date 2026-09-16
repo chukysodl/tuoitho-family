@@ -64,6 +64,39 @@ public sealed class ChildSoftLockControllerTests
     }
 
     [Fact]
+    public void M1ParentRecoveryHidesOnlyVisualUntilPolicyChangesThenCanBlockAgain()
+    {
+        var view = new FakeView();
+        var launcher = new FakeLauncher(true);
+        using var controller = new ChildSoftLockController(view, "m1-child", m1TestMode: true, launcher);
+        controller.UpdatePolicyState(Warning(AccessDenyReason.QuotaExhausted));
+
+        view.RequestParentControl();
+
+        Assert.Equal(1, launcher.Calls);
+        Assert.Equal(1, view.Hidden);
+        Assert.True(controller.IsBlocked);
+        controller.UpdatePolicyState(Warning(AccessDenyReason.QuotaExhausted));
+        Assert.Single(view.Shown);
+
+        controller.UpdatePolicyState(Warning(AccessDenyReason.None, remainingMinutes: 15));
+        controller.UpdatePolicyState(Warning(AccessDenyReason.QuotaExhausted));
+        Assert.Equal(2, view.Shown.Count);
+    }
+
+    [Fact]
+    public void M1ParentRecoveryFailureRestoresOverlayWithoutChangingPolicy()
+    {
+        var view = new FakeView();
+        using var controller = new ChildSoftLockController(view, "m1-child", m1TestMode: true, new FakeLauncher(false));
+        controller.UpdatePolicyState(Warning(AccessDenyReason.QuotaExhausted));
+        view.RequestParentControl();
+
+        Assert.True(controller.IsBlocked);
+        Assert.Equal(1, view.Hidden);
+        Assert.Equal(2, view.Shown.Count);
+    }
+    [Fact]
     public void ProductionModeDoesNotExposeEmergencyCloseControl()
     {
         var view = new FakeView();
@@ -76,6 +109,25 @@ public sealed class ChildSoftLockControllerTests
         Assert.Equal(0, view.Hidden);
     }
 
+    [Fact]
+    public void F12IsTheOnlyM1EmergencyExitKey()
+    {
+        Assert.True(ChildSoftLockForm.IsM1EmergencyExitKey(System.Windows.Forms.Keys.F12));
+        Assert.False(ChildSoftLockForm.IsM1EmergencyExitKey(System.Windows.Forms.Keys.Escape));
+    }
+
+    [Fact]
+    public void ProductionModeCannotLaunchParentRecovery()
+    {
+        var view = new FakeView();
+        var launcher = new FakeLauncher(true);
+        using var controller = new ChildSoftLockController(view, "child", m1TestMode: false, launcher);
+        controller.UpdatePolicyState(new SessionWarning("child", 7, 0, null, AccessDenyReason.QuotaExhausted));
+        view.RequestParentControl();
+
+        Assert.Equal(0, launcher.Calls);
+        Assert.True(controller.IsBlocked);
+    }
     [Fact]
     public void ForeignProfileIsIgnoredAndNoNativeEnforcementInterfaceExistsHere()
     {
@@ -94,9 +146,16 @@ public sealed class ChildSoftLockControllerTests
         public List<ChildSoftLockState> Shown { get; } = [];
         public int Hidden { get; private set; }
         public event Action? EmergencyExitRequested;
+        public event Action? ParentControlRequested;
         public void Show(ChildSoftLockState state) => Shown.Add(state);
         public void Hide() => Hidden++;
         public void RequestEmergencyExit() => EmergencyExitRequested?.Invoke();
+        public void RequestParentControl() => ParentControlRequested?.Invoke();
         public void Dispose() { }
+    }
+    private sealed class FakeLauncher(bool result) : IM1ParentControlLauncher
+    {
+        public int Calls { get; private set; }
+        public bool TryOpenParentControl() { Calls++; return result; }
     }
 }

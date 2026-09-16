@@ -11,6 +11,7 @@ public sealed record ChildSoftLockState(
 public interface IChildSoftLockView : IDisposable
 {
     event Action? EmergencyExitRequested;
+    event Action? ParentControlRequested;
     void Show(ChildSoftLockState state);
     void Hide();
 }
@@ -20,6 +21,10 @@ public interface IChildSoftLockController : IDisposable
     void UpdatePolicyState(SessionWarning warning);
     void CloseM1OverlayForSafety();
     bool IsBlocked { get; }
+}
+public interface IM1ParentControlLauncher
+{
+    bool TryOpenParentControl();
 }
 
 /// <summary>
@@ -31,16 +36,19 @@ public sealed class ChildSoftLockController : IChildSoftLockController
     private readonly IChildSoftLockView view;
     private readonly string profileId;
     private readonly bool allowM1EmergencyExit;
+    private readonly IM1ParentControlLauncher? parentControlLauncher;
     private AccessDenyReason blockedReason;
     private bool disposed;
     private bool visualDismissed;
 
-    public ChildSoftLockController(IChildSoftLockView view, string profileId, bool m1TestMode)
+    public ChildSoftLockController(IChildSoftLockView view, string profileId, bool m1TestMode, IM1ParentControlLauncher? parentControlLauncher = null)
     {
         this.view = view ?? throw new ArgumentNullException(nameof(view));
         this.profileId = string.IsNullOrWhiteSpace(profileId) ? throw new ArgumentException("A profile ID is required.", nameof(profileId)) : profileId;
         allowM1EmergencyExit = m1TestMode && string.Equals(profileId, "m1-child", StringComparison.Ordinal);
+        this.parentControlLauncher = parentControlLauncher;
         view.EmergencyExitRequested += CloseM1OverlayForSafety;
+        view.ParentControlRequested += OpenParentControlForM1;
     }
 
     public bool IsBlocked
@@ -97,6 +105,28 @@ public sealed class ChildSoftLockController : IChildSoftLockController
         }
     }
 
+    private void OpenParentControlForM1()
+    {
+        lock (gate)
+        {
+            if (disposed || !allowM1EmergencyExit || blockedReason == AccessDenyReason.None || visualDismissed)
+            {
+                return;
+            }
+
+            // The visual overlay must yield before the existing Parent window can be foregrounded.
+            view.Hide();
+            if (parentControlLauncher?.TryOpenParentControl() == true)
+            {
+                // No policy data changes here. It can be shown again only after ALLOWED then blocked.
+                visualDismissed = true;
+                return;
+            }
+
+            view.Show(new ChildSoftLockState(profileId, blockedReason, "00:00:00", allowM1EmergencyExit));
+        }
+    }
+
     public void Dispose()
     {
         lock (gate)
@@ -108,6 +138,7 @@ public sealed class ChildSoftLockController : IChildSoftLockController
 
             disposed = true;
             view.EmergencyExitRequested -= CloseM1OverlayForSafety;
+            view.ParentControlRequested -= OpenParentControlForM1;
             view.Hide();
             view.Dispose();
         }

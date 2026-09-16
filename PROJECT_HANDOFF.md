@@ -83,3 +83,5 @@ User chỉ nên phải test các mốc lớn, không test các bước kỹ thu�
 
 - TASK-004A hoàn tất và được M2 chấp nhận trên máy thật tại commit `f94c7b1`; chính sách ứng dụng vẫn chỉ mô phỏng trên nhánh `task/004-app-control` cho đến khi M2 explicit-block được kiểm thử an toàn.
 - TASK-004B1 đã xác thực explicit-block an toàn: TestMode luôn bật, công tắc thực thi mặc định tắt sau khởi động, và chỉ PID Calculator đã được định danh/ràng buộc session mới được đóng trong thử nghiệm M2; tất cả lớp hệ thống, nền, control-plane và ứng dụng chưa duyệt đều fail-closed.
+
+- M1 soft-lock recovery is deliberately visual-only: the same-screen recovery panel foregrounds the local Parent UI or hides the overlay with F12 without changing policy, quota, grants, TestMode, or SQLite state.

@@ -1,6 +1,6 @@
 namespace TuoiTho.SessionAgent;
 
-public sealed class SessionAgentOptions { public const string SectionName = "SessionAgent"; public string ProfileId { get; init; } = "local-child"; public bool M1TestMode { get; init; } public string? M1WarningPublisherSid { get; init; } }
+public sealed class SessionAgentOptions { public const string SectionName = "SessionAgent"; public string ProfileId { get; init; } = "local-child"; public bool M1TestMode { get; init; } public string? M1WarningPublisherSid { get; init; } public string? ParentExecutablePath { get; init; } }
 
 public sealed class Worker(LocalWarningListener listener, LocalActivityReporter reporter, IChildSoftLockController softLock, ILogger<Worker> logger) : BackgroundService
 {

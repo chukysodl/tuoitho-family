@@ -12,7 +12,7 @@ builder.Services.AddSingleton<IChildWarningSink, DialogWarningSink>();
 builder.Services.AddSingleton<IChildSoftLockController>(services =>
 {
     var options = services.GetRequiredService<IOptions<SessionAgentOptions>>().Value;
-    return new ChildSoftLockController(new WinFormsChildSoftLockView(), options.ProfileId, options.M1TestMode);
+    return new ChildSoftLockController(new WinFormsChildSoftLockView(), options.ProfileId, options.M1TestMode, new M1ParentControlLauncher(options.ParentExecutablePath));
 });
 builder.Services.AddSingleton<IRawInputActivityTracker, RawInputActivityTracker>();
 builder.Services.AddSingleton<IWindowsIdleTimeDiagnostics, WindowsIdleTimeDiagnostics>();

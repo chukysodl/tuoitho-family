@@ -23,6 +23,7 @@ Write-Output "M1 START: SID=$sid Session=$session TestMode=true Quota=3"
 $serviceExe=Join-Path $root 'src/TuoiTho.Service/bin/Release/net10.0-windows/TuoiTho.Service.exe'
 $agentExe=Join-Path $root 'src/TuoiTho.SessionAgent/bin/Release/net10.0-windows/TuoiTho.SessionAgent.exe'
 $parentExe=Join-Path $root 'src/TuoiTho.Parent/bin/Release/net10.0-windows/TuoiTho.Parent.exe'
+$env:SessionAgent__ParentExecutablePath=$parentExe
 foreach($exe in @($serviceExe,$agentExe,$parentExe)){
     if(-not (Test-Path $exe)){Write-Output "M1 START FAIL: Missing built executable: $exe";exit 2}
 }
