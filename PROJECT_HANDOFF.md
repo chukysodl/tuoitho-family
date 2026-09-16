@@ -84,6 +84,6 @@ User chỉ nên phải test các mốc lớn, không test các bước kỹ thu�
 - TASK-004A hoàn tất và được M2 chấp nhận trên máy thật tại commit `f94c7b1`; chính sách ứng dụng vẫn chỉ mô phỏng trên nhánh `task/004-app-control` cho đến khi M2 explicit-block được kiểm thử an toàn.
 - TASK-004B1 PASS — real user acceptance: TestMode luôn bật, công tắc thực thi mặc định tắt sau khởi động, và chỉ PID Calculator đã được định danh/ràng buộc session mới được đóng trong thử nghiệm M2; tất cả lớp hệ thống, nền, control-plane và ứng dụng chưa duyệt đều fail-closed.
 - TASK-004B2 PASS — real M2 TestMode proof: allowlist-first/deny-by-default có preflight scan, bulk baseline, lease 10 phút không lưu bền, và luôn tắt sau Service restart.
-- TASK-004 PASS / COMPLETE: final closeout deduplicates case-insensitive executable identities (newest observation/rule state preserved); branch CI then fast-forward merge to main is pending.
+- TASK-004 PASS / COMPLETE trên `main` tại `f277036eaa748e58f33f0ff92c419ca0a8e2be27`: final closeout deduplicates case-insensitive executable identities (newest observation/rule state preserved). Branch Actions `35071280376` PASS; Main Actions `35071468605` PASS.
 
 - M1 soft-lock recovery is deliberately visual-only: the same-screen recovery panel foregrounds the local Parent UI or hides the overlay with F12 without changing policy, quota, grants, TestMode, or SQLite state.
