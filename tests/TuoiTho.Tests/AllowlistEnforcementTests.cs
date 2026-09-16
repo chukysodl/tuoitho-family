@@ -90,7 +90,7 @@ public sealed class AllowlistEnforcementTests
         Assert.Equal(AppRuleDecision.Allow, fixture.Apps.Rules.Single().Decision);
         var enabled = await fixture.Controls.ExecuteAsync(new(ParentControlAction.EnableM2AllowlistEnforcement, "child", 7), "parent", new HashSet<string> { "parent" });
         Assert.True(enabled.Accepted);
-        Assert.Equal(AppEnforcementMode.AllowlistProduction, fixture.State.Mode);
+        Assert.Equal(AppEnforcementMode.AllowlistProduction, fixture.State.Snapshot(fixture.Clock.UtcNow).Mode);
     }
 
     [Fact]

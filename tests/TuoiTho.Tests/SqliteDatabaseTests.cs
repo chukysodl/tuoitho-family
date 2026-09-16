@@ -32,7 +32,7 @@ public sealed class SqliteDatabaseTests
                 Assert.True(classificationFound);
             }
 
-            Assert.Equal(5, SqliteDatabase.CurrentSchemaVersion);
+            Assert.Equal(6, SqliteDatabase.CurrentSchemaVersion);
         }
         finally
         {

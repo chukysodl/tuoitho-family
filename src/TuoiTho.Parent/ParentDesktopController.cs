@@ -32,6 +32,9 @@ public sealed class ParentDesktopController(IParentControlClient client, string 
     public Task<ParentUiResult> SendAppAsync(ParentControlAction action, AppIdentity application, CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(action, profileId, sessionId, null, application), token);
 
+    public Task<ParentUiResult> SendWebRuleAsync(ParentControlAction action, WebRule rule, CancellationToken token = default) =>
+        ExecuteAsync(new ParentControlCommand(action, profileId, sessionId, WebRule: rule), token);
+
     private async Task<ParentUiResult> ExecuteAsync(ParentControlCommand command, CancellationToken token)
     {
         var entered = false;
