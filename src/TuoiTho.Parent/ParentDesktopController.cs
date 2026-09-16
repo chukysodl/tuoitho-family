@@ -32,6 +32,9 @@ public sealed class ParentDesktopController(IParentControlClient client, string 
     public Task<ParentUiResult> SendAppAsync(ParentControlAction action, AppIdentity application, CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(action, profileId, sessionId, null, application), token);
 
+    public Task<ParentUiResult> SaveTimePolicyAsync(int dailyQuotaMinutes, IReadOnlyList<AllowedUsageWindow> windows, CancellationToken token = default) =>
+        ExecuteAsync(new ParentControlCommand(ParentControlAction.SaveTimePolicy, profileId, sessionId, DailyQuotaMinutes: dailyQuotaMinutes, Windows: windows), token);
+
     private async Task<ParentUiResult> ExecuteAsync(ParentControlCommand command, CancellationToken token)
     {
         var entered = false;
@@ -61,6 +64,8 @@ public sealed class ParentDesktopController(IParentControlClient client, string 
         "UNAUTHORIZED" => "Bạn không có quyền thực hiện thao tác này.",
         "PROFILE_OR_SESSION_MISMATCH" => "Hồ sơ hoặc phiên quản lý không khớp.",
         "INVALID_GRANT" => "Số phút phải từ 1 đến 1440.",
+        "INVALID_DAILY_QUOTA" => "Hạn mức mỗi ngày phải từ 1 đến 1440 phút.",
+        "INVALID_SCHEDULE" => "Khung giờ sử dụng không hợp lệ.",
         "EMPTY_RESPONSE" or "MALFORMED_RESPONSE" => "Phản hồi từ Dịch vụ không hợp lệ.",
         "APP_ENFORCEMENT_TESTMODE_REQUIRED" => "Chặn thử nghiệm chỉ khả dụng trong TestMode.",
         _ => "Dịch vụ không chấp nhận yêu cầu."

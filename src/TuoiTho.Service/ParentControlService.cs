@@ -70,6 +70,16 @@ public sealed class ParentControlService : IDisposable
                 await store.SaveAsync(policy, token); changes.Notify();
                 return new(true, null, policy, await StatusAsync(policy, token));
             }
+            if (command.Action == ParentControlAction.SaveTimePolicy)
+            {
+                if (command.DailyQuotaMinutes is null or < 1 or > 1440) return new(false, "INVALID_DAILY_QUOTA", policy, await StatusAsync(policy, token));
+                var validationError = WeeklyScheduleValidator.Validate(command.Windows);
+                if (validationError is not null) return new(false, "INVALID_SCHEDULE", policy, await StatusAsync(policy, token), validationError);
+                policy = policy with { DailyQuotaMinutes = command.DailyQuotaMinutes.Value, Windows = command.Windows!.ToArray() };
+                await store.SaveAsync(policy, token);
+                changes.Notify();
+                return new(true, null, policy, await StatusAsync(policy, token), "Đã lưu hạn mức và khung giờ sử dụng.");
+            }
             switch (command.Action)
             {
                 case ParentControlAction.GrantMinutes:
@@ -216,7 +226,7 @@ public sealed class ParentControlService : IDisposable
                 return new ParentObservedApp(a.Identity, a.Classification, evaluation.Decision, evaluation.Reason, a.LastSeenUtc, explicitRule, AppEnforcementText(a.Classification, explicitRule, enforcement));
             }).ToArray(), lastAppDiscovery, enforcement, policy.TestMode);
         }
-        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps);
+        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, policy.Windows);
     }
 
     private void RecordEnforcement(DeviceTimePolicy policy, string decision, AppEnforcementAuditAction action)
