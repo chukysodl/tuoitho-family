@@ -93,6 +93,10 @@ public sealed class AppPolicyPanel : UserControl
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool ShowBackgroundHelpers { get => showBackground.Checked; set => showBackground.Checked = value; }
 
+    public static IReadOnlyList<ParentObservedApp> DeduplicateByExecutableIdentity(IEnumerable<ParentObservedApp> apps) => apps
+        .GroupBy(app => app.Identity.NormalizedExecutablePath, StringComparer.OrdinalIgnoreCase)
+        .Select(group => group.OrderByDescending(app => app.LastSeenUtc).First()).ToArray();
+
     public static string RuleText(ParentObservedApp app) => app.ExplicitRule switch
     {
         AppRuleDecision.Allow => "CHO PHÉP",

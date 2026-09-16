@@ -203,7 +203,9 @@ public sealed class ParentControlService : IDisposable
         {
             var defaultAppPolicy = await appPolicies.GetDefaultPolicyAsync(policy.ProfileId, token);
             var rules = await appPolicies.GetRulesAsync(policy.ProfileId, token);
-            var observed = await appPolicies.GetObservedAppsAsync(policy.ProfileId, policy.ManagedSessionId, token);
+            var observed = (await appPolicies.GetObservedAppsAsync(policy.ProfileId, policy.ManagedSessionId, token))
+                .GroupBy(app => app.Identity.NormalizedExecutablePath, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.OrderByDescending(app => app.LastSeenUtc).First()).ToArray();
             var enforcementRuntime = appEnforcement?.Snapshot(clock.UtcNow) ?? new AppEnforcementRuntimeState(AppEnforcementMode.Simulation, null);
             int? leaseSeconds = enforcementRuntime.LeaseExpiresAtUtc is { } expiry ? Math.Max(0, (int)Math.Ceiling((expiry - clock.UtcNow).TotalSeconds)) : null;
             var enforcement = new ParentAppEnforcementStatus(enforcementRuntime.Mode, enforcementRuntime.Armed, appEnforcementAudit?.Latest, enforcementRuntime.LeaseExpiresAtUtc, leaseSeconds);

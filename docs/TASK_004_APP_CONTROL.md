@@ -65,6 +65,10 @@ The real TestMode flow began with enforcement OFF. A fresh managed-session scan 
 
 The local Parent pipe client now uses a bounded five-second connection wait. The desktop controller serializes all status, app-policy, grant, and allowlist requests and converts expected timeout, I/O, authorization, cancellation, and JSON failures into one Vietnamese status-bar message. Auto-refresh does not queue while a prior tick or a manual action is running, and one refresh follows each completed manual action.
 
+## TASK-004 final closeout
+
+TASK-004 is PASS / COMPLETE. Final regression covers discovery, explicit allow/block, unknown deny-by-default, bulk baseline, allowlist arm/disarm, recovery exclusions, M1 overlay recovery, and Parent IPC resilience. Observations collapse case-insensitive executable identities in persistence, service status, and UI, preserving the newest `LastSeen` record and normal current-rule lookup.
+
 ## M1 recovery safety follow-up
 
 For m1-child with TestMode=true, the visual soft-lock overlay includes a DPI-safe, centered recovery panel. It can foreground/start the colocated local Parent UI or hide the visual overlay with F12; neither path modifies policy state or persisted data. The same unchanged deny state stays visually dismissed until the policy becomes allowed and later denies again.
