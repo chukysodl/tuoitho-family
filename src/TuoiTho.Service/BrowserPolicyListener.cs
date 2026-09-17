@@ -92,7 +92,11 @@ public sealed class BrowserPolicyListener(
         if (request is null || sid is null || !string.Equals(sid, settings.ManagedUserSid, StringComparison.OrdinalIgnoreCase) || !BrowserNavigationValidator.IsValid(request, settings.ExtensionId)) return new(false, "REJECTED_BROWSER_REQUEST");
         var policy = await policies.LoadAsync(request.ProfileId, token);
         if (policy is null || policy.ManagedSessionId != request.ManagedSessionId || !string.Equals(policy.ManagedUserSid, sid, StringComparison.OrdinalIgnoreCase)) return new(false, "PROFILE_OR_SESSION_MISMATCH");
-        var rules = await webPolicies.GetRulesAsync(policy.ProfileId, token);
+        if (request.IsPolicySync)
+        {
+            var snapshot = await webPolicies.GetSnapshotAsync(policy.ProfileId, token);
+            return new(true, "POLICY_SNAPSHOT", PolicyRevision: snapshot.Revision, CustomRules: snapshot.Rules.Where(rule => rule.Provider == BrowserProvider.GenericWeb).ToArray());
+        }        var rules = await webPolicies.GetRulesAsync(policy.ProfileId, token);
         var navigation = new BrowserNavigation(request.Provider, request.Host, request.Path, request.ContentType, request.ChannelId, request.ChannelHandle, request.TikTokCreator);
         var decision = WebPolicyEngine.Evaluate(navigation, rules);
         return new(decision.Allowed, decision.Reason, decision.MatchedRule?.DisplayLabel);

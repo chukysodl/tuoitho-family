@@ -94,9 +94,18 @@ public sealed class ParentControlService : IDisposable
     private async Task<ParentControlResult> ExecuteWebAsync(ParentControlCommand command, DeviceTimePolicy policy, CancellationToken token)
     {
         if (webPolicies is null || command.WebRule is null || command.WebRule.ProfileId != policy.ProfileId) return new(false, "INVALID_WEB_RULE");
-        if (command.WebRule.Provider == BrowserProvider.GenericWeb || string.IsNullOrWhiteSpace(command.WebRule.NormalizedKey)) return new(false, "INVALID_WEB_RULE");
-        if (command.Action == ParentControlAction.RemoveWebRule) await webPolicies.RemoveRuleAsync(policy.ProfileId, command.WebRule.Provider, command.WebRule.Scope, command.WebRule.NormalizedKey, token);
-        else await webPolicies.SaveRuleAsync(command.WebRule, token);
+        var rule = command.WebRule;
+        if (rule.Provider == BrowserProvider.GenericWeb)
+        {
+            if (!WebIdentityNormalizer.TryNormalizeCustomWebsite(rule.DisplayLabel, rule.Scope, out var identity) || !string.Equals(identity.NormalizedKey, rule.NormalizedKey, StringComparison.Ordinal)) return new(false, "INVALID_WEB_RULE");
+            rule = rule with { DisplayLabel = identity.DisplayValue, NormalizedKey = identity.NormalizedKey };
+        }
+        else if (rule.Provider is not (BrowserProvider.YouTube or BrowserProvider.TikTok) || string.IsNullOrWhiteSpace(rule.NormalizedKey) || rule.Scope is WebRuleScope.Domain or WebRuleScope.PathPrefix)
+        {
+            return new(false, "INVALID_WEB_RULE");
+        }
+        if (command.Action == ParentControlAction.RemoveWebRule) await webPolicies.RemoveRuleAsync(policy.ProfileId, rule.Provider, rule.Scope, rule.NormalizedKey, token);
+        else await webPolicies.SaveRuleAsync(rule, token);
         changes.Notify(); return new(true, null, policy, await StatusAsync(policy, token));
     }
     private async Task<ParentControlResult> SetExplicitBlockOnlyAsync(bool enabled, DeviceTimePolicy policy, CancellationToken token)
@@ -229,7 +238,8 @@ public sealed class ParentControlService : IDisposable
                 return new ParentObservedApp(a.Identity, a.Classification, evaluation.Decision, evaluation.Reason, a.LastSeenUtc, explicitRule, AppEnforcementText(a.Classification, explicitRule, enforcement));
             }).ToArray(), lastAppDiscovery, enforcement, policy.TestMode);
         }
-        var web = webPolicies is null ? null : new ParentWebControlStatus(await webPolicies.GetRulesAsync(policy.ProfileId, token), browserRuntime?.Snapshot());
+        var snapshot = webPolicies is null ? null : await webPolicies.GetSnapshotAsync(policy.ProfileId, token);
+        var web = snapshot is null ? null : new ParentWebControlStatus(snapshot.Rules, browserRuntime?.Snapshot(), snapshot.Revision);
         return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, web);
     }
 

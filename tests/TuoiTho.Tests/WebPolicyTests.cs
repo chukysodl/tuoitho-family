@@ -99,6 +99,15 @@ public sealed class WebPolicyTests
     }
 
     [Fact]
+    public void PolicySyncCarriesNoArbitraryNavigationUrl()
+    {
+        var sync = new BrowserNavigationRequest("extension", "child", 7, BrowserProvider.GenericWeb, string.Empty, string.Empty, BrowserContentType.Unknown, IsPolicySync: true);
+        Assert.True(BrowserNavigationValidator.IsValid(sync, "extension"));
+        Assert.False(BrowserNavigationValidator.IsValid(sync with { Host = "poki.com" }, "extension"));
+        Assert.False(BrowserNavigationValidator.IsValid(sync with { Provider = BrowserProvider.YouTube }, "extension"));
+    }
+
+    [Fact]
     public void BrowserRequestRejectsWrongExtensionOversizeIdentityAndCannotCarryCommands()
     {
         var request = new BrowserNavigationRequest("wrong", "child", 7, BrowserProvider.YouTube, "youtube.com", "/watch", BrowserContentType.Video);
@@ -114,5 +123,49 @@ public sealed class WebPolicyTests
         Assert.False(BrowserNavigationValidator.IsValid(validShortOwnerState with { OwnerCandidateCount = 17 }, "right"));
         Assert.DoesNotContain(typeof(BrowserNavigationRequest).GetProperties(), property => property.Name.Contains("Action", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Command", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(typeof(WebRule).GetProperties(), property => property.Name.Contains("History", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Cookie", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Search", StringComparison.OrdinalIgnoreCase));
+        Assert.StartsWith("web:child:", new WebRule("child", BrowserProvider.GenericWeb, WebRuleScope.Domain, WebRuleDecision.Block, "domain:poki.com", "poki.com").StableId, StringComparison.Ordinal);
+    }
+    [Theory]
+    [InlineData("example.com", WebRuleScope.Domain, "domain:example.com")]
+    [InlineData("www.example.com", WebRuleScope.Domain, "domain:www.example.com")]
+    [InlineData("https://example.com/games/", WebRuleScope.PathPrefix, "path:example.com/games/")]
+    [InlineData("http://example.com:80/games/", WebRuleScope.PathPrefix, "path:example.com/games/")]
+    [InlineData("https://münich.example/", WebRuleScope.Domain, "domain:xn--mnich-kva.example")]
+    public void CustomWebsiteInputsNormalizeSafely(string input, WebRuleScope scope, string expected)
+    {
+        Assert.True(WebIdentityNormalizer.TryNormalizeCustomWebsite(input, scope, out var identity));
+        Assert.Equal(expected, identity.NormalizedKey);
+    }
+
+    [Theory]
+    [InlineData("https://user:password@example.com/")]
+    [InlineData("chrome://settings")]
+    [InlineData("example.com/%")]
+    [InlineData("not a host")]
+    public void UnsafeOrMalformedCustomWebsiteInputsAreRejected(string input)
+        => Assert.False(WebIdentityNormalizer.TryNormalizeCustomWebsite(input, WebRuleScope.Domain, out _));
+
+    [Fact]
+    public void CustomDomainCoversSubdomainsButNeverSuffixLookalikes()
+    {
+        var block = new WebRule("child", BrowserProvider.GenericWeb, WebRuleScope.Domain, WebRuleDecision.Block, "domain:example.com", "example.com");
+        Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.GenericWeb, "example.com", "/", BrowserContentType.Site), [block]).Allowed);
+        Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.GenericWeb, "play.example.com", "/", BrowserContentType.Site), [block]).Allowed);
+        Assert.True(WebPolicyEngine.Evaluate(new(BrowserProvider.GenericWeb, "notexample.com", "/", BrowserContentType.Site), [block]).Allowed);
+        Assert.True(WebPolicyEngine.Evaluate(new(BrowserProvider.GenericWeb, "example.com.evil.test", "/", BrowserContentType.Site), [block]).Allowed);
+    }
+
+    [Fact]
+    public void CustomPathAndAllowExceptionUseDeterministicSpecificity()
+    {
+        var rules = new[]
+        {
+            new WebRule("child", BrowserProvider.GenericWeb, WebRuleScope.Domain, WebRuleDecision.Block, "domain:example.com", "example.com"),
+            new WebRule("child", BrowserProvider.GenericWeb, WebRuleScope.PathPrefix, WebRuleDecision.Allow, "path:example.com/learning/", "example.com/learning/")
+        };
+        var allowed = WebPolicyEngine.Evaluate(new(BrowserProvider.GenericWeb, "example.com", "/learning/lesson", BrowserContentType.Site), rules);
+        var blocked = WebPolicyEngine.Evaluate(new(BrowserProvider.GenericWeb, "example.com", "/games/abc", BrowserContentType.Site), rules);
+        Assert.True(allowed.Allowed); Assert.Equal("CUSTOM_ALLOW", allowed.Reason);
+        Assert.False(blocked.Allowed); Assert.Equal("CUSTOM_BLOCK", blocked.Reason);
     }
 }

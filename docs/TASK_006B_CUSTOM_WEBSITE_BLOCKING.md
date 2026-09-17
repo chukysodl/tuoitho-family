@@ -1,0 +1,13 @@
+# TASK-006B — Custom website / URL blocking
+
+TuoiTho uses Manifest V3 `declarativeNetRequest` dynamic rules for parent-created generic website policy. SQLite and the local Service are the source of truth; the extension stores only the most recent policy snapshot/revision and its TuoiTho-owned dynamic rule IDs.
+
+## Rules and precedence
+
+A parent may create `DOMAIN` or `PATH_PREFIX` rules with `BLOCK` or `ALLOW`. Hosts are normalized to lowercase punycode internally while the UI retains a friendly Unicode display. A domain covers that host and its subdomains only. A path prefix is host-bound. The matching rule with the longest/more-specific path wins; this makes `BLOCK example.com` plus `ALLOW example.com/learning/` deterministic.
+
+## Privacy and safety boundary
+
+Only parent-authored rules are persisted. Normal arbitrary navigation never sends a URL to the Service: browser startup/top-level navigation asks only for the policy revision/snapshot, then DNR evaluates locally. The extension has no arbitrary-site content script and does not collect page content, browsing/watch/search history, cookies, passwords, keystrokes, screenshots, documents, or query strings.
+
+TuoiTho rules apply only to `main_frame` and `sub_frame`, so a blocked domain is not used to block unrelated third-party assets. Existing block DNR rules remain while BrowserHost/Service is unavailable. Internal browser and extension URLs are rejected from parent input. Browser dynamic rules not owned by TuoiTho are never removed or modified.

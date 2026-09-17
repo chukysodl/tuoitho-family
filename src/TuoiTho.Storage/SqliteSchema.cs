@@ -4,7 +4,7 @@ internal sealed record Migration(string Id, string Sql);
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
 
     public static IReadOnlyList<Migration> Migrations { get; } =
     [
@@ -173,6 +173,16 @@ internal static class SqliteSchema
                 FOREIGN KEY (profile_id) REFERENCES child_profiles (profile_id)
             );
             CREATE INDEX IF NOT EXISTS ix_browser_content_rules_profile ON browser_content_rules (profile_id, provider);
+            """),
+        new Migration(
+            "0008-custom-website-policy-revision",
+            """
+            CREATE TABLE IF NOT EXISTS browser_policy_revisions (
+                profile_id TEXT NOT NULL PRIMARY KEY,
+                revision INTEGER NOT NULL DEFAULT 0,
+                updated_at_utc TEXT NOT NULL,
+                FOREIGN KEY (profile_id) REFERENCES child_profiles (profile_id)
+            );
             """)
     ];
 }

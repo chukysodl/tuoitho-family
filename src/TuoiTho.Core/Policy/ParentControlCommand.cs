@@ -8,5 +8,5 @@ public sealed record ParentAppControlStatus(DefaultAppPolicy DefaultPolicy,IRead
 public sealed record ParentControlStatus(string ProfileId,int ManagedSessionId,bool TestMode,int UsedMinutes,int QuotaMinutes,int GrantMinutes,int RemainingMinutes,string State,ParentActivityDiagnostics? Diagnostics=null,double AllowedSeconds=0,double RemainingSeconds=0,ParentAppControlStatus? Apps=null,ParentWebControlStatus? Web=null);
 /// <summary>Ephemeral browser health only; this deliberately contains no URL or browsing history.</summary>
 public sealed record ParentBrowserRuntimeStatus(bool ExtensionConnected, DateTimeOffset? LastCheckedAtUtc, string LastResult, string BrowserPolicyState = "STARTING", string? BrowserPolicyError = null, string? ShortOwnerState = null, string? ShortContainer = null, int? ShortOwnerCandidateCount = null, string? ShortOwnerSource = null);
-public sealed record ParentWebControlStatus(IReadOnlyList<WebRule> Rules, ParentBrowserRuntimeStatus? RuntimeStatus = null);
+public sealed record ParentWebControlStatus(IReadOnlyList<WebRule> Rules, ParentBrowserRuntimeStatus? RuntimeStatus = null, long PolicyRevision = 0);
 public sealed record ParentControlResult(bool Accepted,string? Error,DeviceTimePolicy? Policy=null,ParentControlStatus? Status=null,string? Message=null);

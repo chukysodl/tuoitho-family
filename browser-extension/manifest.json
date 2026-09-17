@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Tuổi Thơ M4 Browser Control",
-  "version": "0.1.0",
-  "description": "Local-only YouTube and TikTok policy evaluation.",
-  "permissions": ["nativeMessaging"],
-  "host_permissions": ["*://*.youtube.com/*", "*://youtu.be/*", "*://*.tiktok.com/*"],
+  "version": "0.2.0",
+  "description": "Local-only browser policy evaluation and parent-created URL blocking.",
+  "permissions": ["nativeMessaging", "declarativeNetRequest", "storage", "webNavigation"],
+  "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "service-worker.js", "type": "module" },
   "content_scripts": [
     { "matches": ["*://*.youtube.com/*", "*://youtu.be/*"], "js": ["content/youtube.js"], "run_at": "document_idle" },
