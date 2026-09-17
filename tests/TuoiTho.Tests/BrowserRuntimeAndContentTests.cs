@@ -25,9 +25,16 @@ public sealed class BrowserRuntimeAndContentTests
         var script = File.ReadAllText(Path.Combine(RepositoryRoot(), "browser-extension", "content", "youtube.js"));
         Assert.Contains("ytd-video-owner-renderer", script, StringComparison.Ordinal);
         Assert.Contains("ytd-reel-video-renderer[is-active]", script, StringComparison.Ordinal);
+        Assert.Contains("/playables/", script, StringComparison.Ordinal);
+        Assert.Contains("contentType: \"Playable\"", script, StringComparison.Ordinal);
+        Assert.Contains("ytd-playables-player-page-renderer", script, StringComparison.Ordinal);
+        Assert.Contains("root.querySelector(selector)", script, StringComparison.Ordinal);
+        Assert.Contains("channelIdFrom(root)", script, StringComparison.Ordinal);
+        Assert.Contains("identity.contentType === \"Playable\"", script, StringComparison.Ordinal);
         Assert.DoesNotContain("document.querySelector('a[href^=\"/@\"]')", script, StringComparison.Ordinal);
         Assert.Contains("new MutationObserver", script, StringComparison.Ordinal);
         Assert.Contains("media.pause()", script, StringComparison.Ordinal);
+        Assert.Contains("suppressBlockedInput", script, StringComparison.Ordinal);
         Assert.Contains("Nội dung này chưa được phụ huynh cho phép.", script, StringComparison.Ordinal);
         Assert.Contains("Tuổi Thơ chưa kết nối — kiểm soát Web đang tạm ngưng.", script, StringComparison.Ordinal);
         Assert.DoesNotContain("document.documentElement.innerHTML", script, StringComparison.Ordinal);

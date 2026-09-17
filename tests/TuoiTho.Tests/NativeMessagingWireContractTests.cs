@@ -12,6 +12,7 @@ public sealed class NativeMessagingWireContractTests
     [InlineData("Channel", "YouTube")]
     [InlineData("Video", "YouTube")]
     [InlineData("ShortForm", "YouTube")]
+    [InlineData("Playable", "YouTube")]
     [InlineData("Creator", "TikTok")]
     public async Task BrowserStyleCamelCaseRequestWithStringEnumsRoundTrips(string contentType, string provider)
     {

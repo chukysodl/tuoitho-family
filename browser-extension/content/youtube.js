@@ -44,6 +44,24 @@
     const identity = identityFromHref(link?.getAttribute("href"));
     return { ...identity, channelId: channelIdFrom(active) || identity.channelId || null };
   };
+  const playableOwnerIdentity = () => {
+    const root = document.querySelector("ytd-playables-player-page-renderer, ytd-playables-renderer, ytd-playables-game-renderer, [data-playables-player]");
+    if (!root) return {};
+    const selectors = [
+      "ytd-channel-name a[href*='/@']",
+      "ytd-channel-name a[href*='/channel/']",
+      "#channel-name a[href*='/@']",
+      "#channel-name a[href*='/channel/']",
+      "a[href^='/@']",
+      "a[href^='/channel/']"
+    ];
+    for (const selector of selectors) {
+      const link = root.querySelector(selector);
+      const identity = identityFromHref(link?.getAttribute("href"));
+      if (identity.channelHandle || identity.channelId) return { ...identity, channelId: channelIdFrom(root) || identity.channelId || null };
+    }
+    return {};
+  };
   const pauseMedia = () => document.querySelectorAll("video,audio").forEach(media => { try { media.pause(); } catch { } });
   const remove = id => document.getElementById(id)?.remove();
   const unblock = () => { blocked = false; remove(overlayId); };
@@ -74,6 +92,7 @@
     const path = location.pathname;
     if (/^\/(?:@|channel\/|c\/|user\/)/i.test(path)) return { contentType: "Channel", ...channelPageIdentity() };
     if (path.startsWith("/shorts/")) return { contentType: "ShortForm", ...shortsOwnerIdentity() };
+    if (path.startsWith("/playables/")) return { contentType: "Playable", ...playableOwnerIdentity() };
     if (path === "/watch") return { contentType: "Video", ...ownerIdentity() };
     return { contentType: "Site" };
   };
@@ -84,12 +103,19 @@
       const result = response || { allowed: true, reason: "SERVICE_UNAVAILABLE", diagnostic: "Tuổi Thơ chưa kết nối." };
       serviceBanner(result.allowed === true && result.reason === "SERVICE_UNAVAILABLE");
       if (result.allowed === false) block(identity); else unblock();
-      const needsOwner = (identity.contentType === "Video" || identity.contentType === "ShortForm") && !identity.channelHandle && !identity.channelId;
+      const needsOwner = (identity.contentType === "Video" || identity.contentType === "ShortForm" || identity.contentType === "Playable") && !identity.channelHandle && !identity.channelId;
       if (needsOwner && retry++ < 12) retryTimer = setTimeout(evaluate, 500); else retry = 0;
     });
   };
   const schedule = () => { clearTimeout(retryTimer); retryTimer = setTimeout(evaluate, 150); };
+  const suppressBlockedInput = event => {
+    if (blocked && !event.target.closest?.(`#${overlayId}`)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  };
   document.addEventListener("play", event => { if (blocked && event.target instanceof HTMLMediaElement) event.target.pause(); }, true);
+  ["keydown", "keyup", "pointerdown", "mousedown", "touchstart", "click"].forEach(type => document.addEventListener(type, suppressBlockedInput, true));
   new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
   addEventListener("yt-navigate-finish", schedule);
   addEventListener("popstate", schedule);

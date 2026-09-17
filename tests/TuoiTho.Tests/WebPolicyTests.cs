@@ -57,11 +57,24 @@ public sealed class WebPolicyTests
     public void YouTubeChannelRuleBlocksChannelVideoAndShortsButNotOtherChannels()
     {
         var rule = new WebRule("child", BrowserProvider.YouTube, WebRuleScope.YouTubeChannel, WebRuleDecision.Block, "handle:@blocked", "@blocked");
-        foreach (var type in new[] { BrowserContentType.Channel, BrowserContentType.Video, BrowserContentType.ShortForm })
+        foreach (var type in new[] { BrowserContentType.Channel, BrowserContentType.Video, BrowserContentType.ShortForm, BrowserContentType.Playable })
             Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "www.youtube.com", "/watch", type, ChannelHandle: "@blocked"), [rule]).Allowed);
-        Assert.True(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "www.youtube.com", "/watch", BrowserContentType.Video, ChannelHandle: "@other"), [rule]).Allowed);
+        Assert.True(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "www.youtube.com", "/playables/other", BrowserContentType.Playable, ChannelHandle: "@other"), [rule]).Allowed);
+        Assert.True(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "www.youtube.com", "/playables/unknown", BrowserContentType.Playable), [rule]).Allowed);
     }
 
+    [Fact]
+    public void YouTubePlayableMatchesPublisherChannelIdAndLeavesUnknownPublisherUnmatched()
+    {
+        var rule = new WebRule("child", BrowserProvider.YouTube, WebRuleScope.YouTubeChannel, WebRuleDecision.Block, "id:UCsaygames", "SayGames");
+        var blocked = WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "www.youtube.com", "/playables/vehicle-masters", BrowserContentType.Playable, ChannelId: "UCsaygames"), [rule]);
+        var unknown = WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "www.youtube.com", "/playables/unknown", BrowserContentType.Playable), [rule]);
+
+        Assert.False(blocked.Allowed);
+        Assert.Equal("EXPLICIT_BLOCK", blocked.Reason);
+        Assert.True(unknown.Allowed);
+        Assert.Equal("NO_MATCH", unknown.Reason);
+    }
     [Fact]
     public void SiteAndTikTokCreatorPoliciesAreDeterministic()
     {

@@ -5,7 +5,7 @@ namespace TuoiTho.Core.Policy;
 public enum BrowserProvider { GenericWeb, YouTube, TikTok }
 public enum WebRuleScope { Site, YouTubeChannel, TikTokCreator }
 public enum WebRuleDecision { Allow, Block }
-public enum BrowserContentType { Site, Channel, Video, ShortForm, Creator, Unknown }
+public enum BrowserContentType { Site, Channel, Video, ShortForm, Playable, Creator, Unknown }
 
 /// <summary>Persisted policy only; it never contains browsing, search, watch, or page-content history.</summary>
 public sealed record WebRule(string ProfileId, BrowserProvider Provider, WebRuleScope Scope, WebRuleDecision Decision, string NormalizedKey, string DisplayLabel);
