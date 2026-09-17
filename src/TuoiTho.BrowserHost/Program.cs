@@ -30,13 +30,6 @@ if (args is ["--service-probe"])
     }
     return;
 }
-if (args.Length != 0)
-{
-    Console.Error.WriteLine("Usage: TuoiTho.BrowserHost [--bootstrap-config <extension-directory> <configuration-path> | --service-probe]");
-    Environment.ExitCode = 2;
-    return;
-}
-
 BrowserControlConfiguration config;
 try
 {
@@ -46,6 +39,14 @@ catch (Exception exception)
 {
     Console.Error.WriteLine($"Browser control configuration is unavailable: {exception.Message}");
     Environment.ExitCode = 3;
+    return;
+}
+
+if (!NativeHostLaunchArguments.TryValidate(args, config, out var launchError))
+{
+    // STDOUT is reserved exclusively for framed Native Messaging responses.
+    Console.Error.WriteLine($"Native Messaging launch rejected: {launchError}");
+    Environment.ExitCode = 2;
     return;
 }
 
