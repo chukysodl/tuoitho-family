@@ -1,11 +1,96 @@
 using TuoiTho.Core.Policy;
+
 namespace TuoiTho.Tests;
+
 public sealed class WebPolicyTests
 {
- [Theory][InlineData("@MrBeast","handle:@mrbeast")][InlineData("https://www.youtube.com/@MrBeast","handle:@mrbeast")][InlineData("https://www.youtube.com/channel/UCabc123","id:UCabc123")][InlineData("https://www.youtube.com/c/Example","handle:@example")]public void YouTubeNormalizesChannelInputs(string input,string expected){Assert.True(WebIdentityNormalizer.TryNormalizeYouTubeChannel(input,out var key,out _));Assert.Equal(expected,key);}
- [Theory][InlineData("@Creator","creator:@creator")][InlineData("https://www.tiktok.com/@Creator","creator:@creator")][InlineData("https://www.tiktok.com/@Creator/video/7","creator:@creator")]public void TikTokNormalizesCreatorInputs(string input,string expected){Assert.True(WebIdentityNormalizer.TryNormalizeTikTokCreator(input,out var key,out _));Assert.Equal(expected,key);}
- [Fact] public void YouTubeChannelRuleBlocksChannelVideoAndShortsButNotOtherChannels(){var rule=new WebRule("child",BrowserProvider.YouTube,WebRuleScope.YouTubeChannel,WebRuleDecision.Block,"handle:@blocked","@blocked");foreach(var type in new[]{BrowserContentType.Channel,BrowserContentType.Video,BrowserContentType.ShortForm})Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube,"www.youtube.com","/watch",type,ChannelHandle:"@blocked"),[rule]).Allowed);Assert.True(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube,"www.youtube.com","/watch",BrowserContentType.Video,ChannelHandle:"@other"),[rule]).Allowed);}
- [Fact] public void SiteAndTikTokCreatorPoliciesAreDeterministic(){var rules=new[]{new WebRule("child",BrowserProvider.YouTube,WebRuleScope.Site,WebRuleDecision.Block,"youtube.com","YouTube"),new WebRule("child",BrowserProvider.TikTok,WebRuleScope.TikTokCreator,WebRuleDecision.Block,"creator:@blocked","@blocked")};Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube,"youtube.com","/",BrowserContentType.Site),rules).Allowed);Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.TikTok,"tiktok.com","/@blocked/video/1",BrowserContentType.Creator,TikTokCreator:"@blocked"),rules).Allowed);}
- [Fact] public void AvailabilityBypassIsOnlyTestModeAndIsNotPersistent(){var test=BrowserHostAvailabilityPolicy.ServiceUnavailable(true);var prod=BrowserHostAvailabilityPolicy.ServiceUnavailable(false);Assert.True(test.Allowed);Assert.Equal("Tuổi Thơ chưa kết nối.",test.Diagnostic);Assert.False(prod.Allowed);Assert.Equal("SERVICE_UNAVAILABLE",prod.Reason);}
- [Fact] public void BrowserRequestRejectsWrongExtensionOversizeIdentityAndCannotCarryCommands(){var request=new BrowserNavigationRequest("wrong","child",7,BrowserProvider.YouTube,"youtube.com","/watch",BrowserContentType.Video);Assert.False(BrowserNavigationValidator.IsValid(request,"right"));Assert.DoesNotContain(typeof(BrowserNavigationRequest).GetProperties(),p=>p.Name.Contains("Action",StringComparison.OrdinalIgnoreCase)||p.Name.Contains("Command",StringComparison.OrdinalIgnoreCase));Assert.DoesNotContain(typeof(WebRule).GetProperties(),p=>p.Name.Contains("History",StringComparison.OrdinalIgnoreCase)||p.Name.Contains("Cookie",StringComparison.OrdinalIgnoreCase)||p.Name.Contains("Search",StringComparison.OrdinalIgnoreCase));}
+    [Theory]
+    [InlineData("@MrBeast", "handle:@mrbeast")]
+    [InlineData("https://www.youtube.com/@MrBeast", "handle:@mrbeast")]
+    [InlineData("https://www.youtube.com/channel/UCabc123", "id:UCabc123")]
+    [InlineData("https://www.youtube.com/c/Example", "handle:@example")]
+    public void YouTubeNormalizesChannelInputs(string input, string expected)
+    {
+        Assert.True(WebIdentityNormalizer.TryNormalizeYouTubeChannel(input, out var key, out _));
+        Assert.Equal(expected, key);
+    }
+
+    [Fact]
+    public void UnicodeYouTubeHandleFormsNormalizeToOneIdentity()
+    {
+        var inputs = new[]
+        {
+            "@VịtBéoTV",
+            "https://www.youtube.com/@VịtBéoTV",
+            "https://www.youtube.com/@V%E1%BB%8BtB%C3%A9oTV",
+            "https://www.youtube.com/@V%E1%BB%8BtB%C3%A9oTV/",
+            "https://www.youtube.com/@V%E1%BB%8BtB%C3%A9oTV?sub_confirmation=1"
+        };
+        var keys = new List<string>();
+        foreach (var input in inputs)
+        {
+            Assert.True(WebIdentityNormalizer.TryNormalizeYouTubeChannel(input, out var key, out var display));
+            Assert.Equal("@VịtBéoTV", display);
+            keys.Add(key);
+        }
+        Assert.Single(keys.Distinct(StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("https://www.youtube.com/@bad%")]
+    [InlineData("https://www.youtube.com/@bad%GG")]
+    [InlineData("@bad%2")]
+    public void MalformedPercentEncodingIsRejected(string input) => Assert.False(WebIdentityNormalizer.TryNormalizeYouTubeChannel(input, out _, out _));
+
+    [Theory]
+    [InlineData("@Creator", "creator:@creator")]
+    [InlineData("https://www.tiktok.com/@Creator", "creator:@creator")]
+    [InlineData("https://www.tiktok.com/@Creator/video/7", "creator:@creator")]
+    [InlineData("https://www.tiktok.com/@V%E1%BB%8BtB%C3%A9o/video/7", "creator:@vịtbéo")]
+    public void TikTokNormalizesCreatorInputs(string input, string expected)
+    {
+        Assert.True(WebIdentityNormalizer.TryNormalizeTikTokCreator(input, out var key, out _));
+        Assert.Equal(expected, key);
+    }
+
+    [Fact]
+    public void YouTubeChannelRuleBlocksChannelVideoAndShortsButNotOtherChannels()
+    {
+        var rule = new WebRule("child", BrowserProvider.YouTube, WebRuleScope.YouTubeChannel, WebRuleDecision.Block, "handle:@blocked", "@blocked");
+        foreach (var type in new[] { BrowserContentType.Channel, BrowserContentType.Video, BrowserContentType.ShortForm })
+            Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "www.youtube.com", "/watch", type, ChannelHandle: "@blocked"), [rule]).Allowed);
+        Assert.True(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "www.youtube.com", "/watch", BrowserContentType.Video, ChannelHandle: "@other"), [rule]).Allowed);
+    }
+
+    [Fact]
+    public void SiteAndTikTokCreatorPoliciesAreDeterministic()
+    {
+        var rules = new[]
+        {
+            new WebRule("child", BrowserProvider.YouTube, WebRuleScope.Site, WebRuleDecision.Block, "youtube.com", "YouTube"),
+            new WebRule("child", BrowserProvider.TikTok, WebRuleScope.TikTokCreator, WebRuleDecision.Block, "creator:@blocked", "@blocked")
+        };
+        Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.YouTube, "youtube.com", "/", BrowserContentType.Site), rules).Allowed);
+        Assert.False(WebPolicyEngine.Evaluate(new(BrowserProvider.TikTok, "tiktok.com", "/@blocked/video/1", BrowserContentType.Creator, TikTokCreator: "@blocked"), rules).Allowed);
+    }
+
+    [Fact]
+    public void AvailabilityBypassIsOnlyTestModeAndIsNotPersistent()
+    {
+        var test = BrowserHostAvailabilityPolicy.ServiceUnavailable(true);
+        var prod = BrowserHostAvailabilityPolicy.ServiceUnavailable(false);
+        Assert.True(test.Allowed);
+        Assert.Equal("Tuổi Thơ chưa kết nối.", test.Diagnostic);
+        Assert.False(prod.Allowed);
+        Assert.Equal("SERVICE_UNAVAILABLE", prod.Reason);
+    }
+
+    [Fact]
+    public void BrowserRequestRejectsWrongExtensionOversizeIdentityAndCannotCarryCommands()
+    {
+        var request = new BrowserNavigationRequest("wrong", "child", 7, BrowserProvider.YouTube, "youtube.com", "/watch", BrowserContentType.Video);
+        Assert.False(BrowserNavigationValidator.IsValid(request, "right"));
+        Assert.DoesNotContain(typeof(BrowserNavigationRequest).GetProperties(), property => property.Name.Contains("Action", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Command", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(typeof(WebRule).GetProperties(), property => property.Name.Contains("History", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Cookie", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Search", StringComparison.OrdinalIgnoreCase));
+    }
 }

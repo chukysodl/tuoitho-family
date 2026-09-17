@@ -4,7 +4,7 @@ internal sealed record Migration(string Id, string Sql);
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 6;
+    public const int CurrentVersion = 7;
 
     public static IReadOnlyList<Migration> Migrations { get; } =
     [
@@ -140,6 +140,39 @@ internal static class SqliteSchema
             "0005-app-observation-classification",
             """
             ALTER TABLE observed_apps ADD COLUMN classification TEXT NOT NULL DEFAULT 'BackgroundHelper';
+            """),
+        new Migration(
+            "0006-browser-content-policy",
+            """
+            CREATE TABLE IF NOT EXISTS browser_content_rules (
+                profile_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                normalized_key TEXT NOT NULL,
+                display_label TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL,
+                PRIMARY KEY (profile_id, provider, scope, normalized_key),
+                FOREIGN KEY (profile_id) REFERENCES child_profiles (profile_id)
+            );
+            CREATE INDEX IF NOT EXISTS ix_browser_content_rules_profile ON browser_content_rules (profile_id, provider);
+            """),
+        // Repair databases that recorded 0006 while an earlier build omitted its DDL.
+        new Migration(
+            "0007-browser-content-policy-repair",
+            """
+            CREATE TABLE IF NOT EXISTS browser_content_rules (
+                profile_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                normalized_key TEXT NOT NULL,
+                display_label TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL,
+                PRIMARY KEY (profile_id, provider, scope, normalized_key),
+                FOREIGN KEY (profile_id) REFERENCES child_profiles (profile_id)
+            );
+            CREATE INDEX IF NOT EXISTS ix_browser_content_rules_profile ON browser_content_rules (profile_id, provider);
             """)
     ];
 }

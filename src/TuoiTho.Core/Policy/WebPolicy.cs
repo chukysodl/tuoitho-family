@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace TuoiTho.Core.Policy;
 
 public enum BrowserProvider { GenericWeb, YouTube, TikTok }
@@ -24,13 +26,20 @@ public static class WebIdentityNormalizer
         key = display = string.Empty;
         if (string.IsNullOrWhiteSpace(value)) return false;
         value = value.Trim();
-        if (value.StartsWith('@')) return Handle(value, out key, out display);
+        if (value.StartsWith('@')) return TryDecodePathSegment(value, out var decodedHandle) && Handle(decodedHandle, out key, out display);
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !IsYouTubeHost(uri.Host)) return false;
-        var parts = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 1) return false;
+        if (!TryGetDecodedPathSegments(uri, out var parts) || parts.Length < 1) return false;
         if (parts[0].StartsWith('@')) return Handle(parts[0], out key, out display);
-        if (parts.Length >= 2 && parts[0].Equals("channel", StringComparison.OrdinalIgnoreCase) && IsChannelId(parts[1])) { key = "id:" + parts[1]; display = parts[1]; return true; }
-        if (parts.Length >= 2 && (parts[0].Equals("c", StringComparison.OrdinalIgnoreCase) || parts[0].Equals("user", StringComparison.OrdinalIgnoreCase))) return Handle("@" + parts[1], out key, out display);
+        if (parts.Length >= 2 && parts[0].Equals("channel", StringComparison.OrdinalIgnoreCase) && IsChannelId(parts[1]))
+        {
+            key = "id:" + parts[1];
+            display = parts[1];
+            return true;
+        }
+        if (parts.Length >= 2 && (parts[0].Equals("c", StringComparison.OrdinalIgnoreCase) || parts[0].Equals("user", StringComparison.OrdinalIgnoreCase)))
+        {
+            return Handle("@" + parts[1], out key, out display);
+        }
         return false;
     }
 
@@ -39,27 +48,75 @@ public static class WebIdentityNormalizer
         key = display = string.Empty;
         if (string.IsNullOrWhiteSpace(value)) return false;
         value = value.Trim();
-        if (value.StartsWith('@')) return TikTokHandle(value, out key, out display);
+        if (value.StartsWith('@')) return TryDecodePathSegment(value, out var decodedHandle) && TikTokHandle(decodedHandle, out key, out display);
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !IsTikTokHost(uri.Host)) return false;
-        var creator = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-        return creator is not null && creator.StartsWith('@') && TikTokHandle(creator, out key, out display);
+        if (!TryGetDecodedPathSegments(uri, out var parts) || parts.Length < 1) return false;
+        return parts[0].StartsWith('@') && TikTokHandle(parts[0], out key, out display);
     }
 
     public static bool IsYouTubeHost(string host) => host.Equals("youtube.com", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".youtube.com", StringComparison.OrdinalIgnoreCase) || host.Equals("youtu.be", StringComparison.OrdinalIgnoreCase);
     public static bool IsTikTokHost(string host) => host.Equals("tiktok.com", StringComparison.OrdinalIgnoreCase) || host.EndsWith(".tiktok.com", StringComparison.OrdinalIgnoreCase);
     public static bool IsChannelId(string value) => value.Length >= 3 && value.StartsWith("UC", StringComparison.Ordinal) && value.All(character => char.IsLetterOrDigit(character) || character is '-' or '_');
 
+    private static bool TryGetDecodedPathSegments(Uri uri, out string[] parts)
+    {
+        var rawPath = uri.GetComponents(UriComponents.Path, UriFormat.UriEscaped).Trim('/');
+        if (string.IsNullOrEmpty(rawPath))
+        {
+            parts = [];
+            return true;
+        }
+
+        var rawParts = rawPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        parts = new string[rawParts.Length];
+        for (var index = 0; index < rawParts.Length; index++)
+        {
+            if (!TryDecodePathSegment(rawParts[index], out parts[index])) return false;
+        }
+        return true;
+    }
+
+    private static bool TryDecodePathSegment(string value, out string decoded)
+    {
+        decoded = string.Empty;
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (value[index] != '%') continue;
+            if (index + 2 >= value.Length || !IsHex(value[index + 1]) || !IsHex(value[index + 2])) return false;
+            index += 2;
+        }
+
+        try
+        {
+            decoded = Uri.UnescapeDataString(value).Normalize(NormalizationForm.FormC);
+            return decoded.IndexOfAny(['/', '\\', '\0']) < 0;
+        }
+        catch (UriFormatException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsHex(char value) => value is >= '0' and <= '9' or >= 'a' and <= 'f' or >= 'A' and <= 'F';
+
     private static bool Handle(string value, out string key, out string display)
     {
-        key = display = string.Empty; var handle = value.Trim().TrimStart('@');
+        key = display = string.Empty;
+        var handle = value.Trim().TrimStart('@').Normalize(NormalizationForm.FormC);
         if (handle.Length is < 1 or > 100 || !handle.All(character => char.IsLetterOrDigit(character) || character is '.' or '-' or '_')) return false;
-        display = "@" + handle; key = "handle:" + display.ToLowerInvariant(); return true;
+        display = "@" + handle;
+        key = "handle:" + display.ToLowerInvariant().Normalize(NormalizationForm.FormC);
+        return true;
     }
+
     private static bool TikTokHandle(string value, out string key, out string display)
     {
-        key = display = string.Empty; var handle = value.Trim().TrimStart('@');
+        key = display = string.Empty;
+        var handle = value.Trim().TrimStart('@').Normalize(NormalizationForm.FormC);
         if (handle.Length is < 1 or > 100 || !handle.All(character => char.IsLetterOrDigit(character) || character is '.' or '-' or '_')) return false;
-        display = "@" + handle; key = "creator:" + display.ToLowerInvariant(); return true;
+        display = "@" + handle;
+        key = "creator:" + display.ToLowerInvariant().Normalize(NormalizationForm.FormC);
+        return true;
     }
 }
 
@@ -109,6 +166,7 @@ public static class BrowserNavigationValidator
         };
     }
 }
+
 public static class BrowserHostAvailabilityPolicy
 {
     public static BrowserNavigationResponse ServiceUnavailable(bool testMode) => testMode
