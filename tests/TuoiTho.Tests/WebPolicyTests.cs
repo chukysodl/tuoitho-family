@@ -103,6 +103,12 @@ public sealed class WebPolicyTests
     {
         var request = new BrowserNavigationRequest("wrong", "child", 7, BrowserProvider.YouTube, "youtube.com", "/watch", BrowserContentType.Video);
         Assert.False(BrowserNavigationValidator.IsValid(request, "right"));
+        var invalidOwnerState = new BrowserNavigationRequest("right", "child", 7, BrowserProvider.YouTube, "youtube.com", "/shorts/1", BrowserContentType.ShortForm, OwnerState: "UNTRUSTED");
+        Assert.False(BrowserNavigationValidator.IsValid(invalidOwnerState, "right"));
+        var validShortOwnerState = new BrowserNavigationRequest("right", "child", 7, BrowserProvider.YouTube, "youtube.com", "/shorts/1", BrowserContentType.ShortForm, OwnerState: "SHORT_OWNER_FOUND");
+        var nonShortOwnerState = validShortOwnerState with { ContentType = BrowserContentType.Video };
+        Assert.True(BrowserNavigationValidator.IsValid(validShortOwnerState, "right"));
+        Assert.False(BrowserNavigationValidator.IsValid(nonShortOwnerState, "right"));
         Assert.DoesNotContain(typeof(BrowserNavigationRequest).GetProperties(), property => property.Name.Contains("Action", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Command", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(typeof(WebRule).GetProperties(), property => property.Name.Contains("History", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Cookie", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Search", StringComparison.OrdinalIgnoreCase));
     }

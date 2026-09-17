@@ -20,6 +20,17 @@ public sealed class BrowserRuntimeAndContentTests
     }
 
     [Fact]
+    public void ShortOwnerDiagnosticIsRuntimeOnlyAndClearedByTheNextNavigation()
+    {
+        var cache = new BrowserRuntimeStatusCache();
+        cache.Record(new BrowserNavigationResponse(false, "EXPLICIT_BLOCK"), "SHORT_OWNER_FOUND");
+        Assert.Equal("SHORT_OWNER_FOUND", cache.Snapshot().ShortOwnerState);
+
+        cache.Record(new BrowserNavigationResponse(true, "NO_MATCH"));
+        Assert.Null(cache.Snapshot().ShortOwnerState);
+        Assert.DoesNotContain(typeof(ParentBrowserRuntimeStatus).GetProperties(), property => property.Name.Contains("Url", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Path", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("History", StringComparison.OrdinalIgnoreCase));
+    }
+    [Fact]
     public void YouTubeContentScriptUsesScopedOwnersAndSafeOverlay()
     {
         var script = File.ReadAllText(Path.Combine(RepositoryRoot(), "browser-extension", "content", "youtube.js"));

@@ -9,10 +9,10 @@ public sealed class BrowserRuntimeStatusCache(TimeProvider? timeProvider = null)
     private readonly TimeProvider time = timeProvider ?? TimeProvider.System;
     private ParentBrowserRuntimeStatus status = new(false, null, "KHÔNG XÁC ĐỊNH", "STARTING");
 
-    public void Record(BrowserNavigationResponse response)
+    public void Record(BrowserNavigationResponse response, string? shortOwnerState = null)
     {
         lock (gate)
-            status = status with { ExtensionConnected = true, LastCheckedAtUtc = time.GetUtcNow(), LastResult = response.Allowed ? "CHO PHÉP" : "CHẶN" };
+            status = status with { ExtensionConnected = true, LastCheckedAtUtc = time.GetUtcNow(), LastResult = response.Allowed ? "CHO PHÉP" : "CHẶN", ShortOwnerState = shortOwnerState };
     }
 
     public void SetBrowserPolicyReadiness(string state, string? error = null)

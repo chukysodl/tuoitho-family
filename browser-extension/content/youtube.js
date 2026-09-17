@@ -37,12 +37,54 @@
     }
     return {};
   };
-  const shortsOwnerIdentity = () => {
+  const viewportScore = element => {
+    if (!element || element.isConnected === false || typeof element.getBoundingClientRect !== "function") return Number.NEGATIVE_INFINITY;
+    const rect = element.getBoundingClientRect();
+    const width = globalThis.innerWidth || document.documentElement?.clientWidth || 1;
+    const height = globalThis.innerHeight || document.documentElement?.clientHeight || 1;
+    const visibleWidth = Math.max(0, Math.min(rect.right, width) - Math.max(rect.left, 0));
+    const visibleHeight = Math.max(0, Math.min(rect.bottom, height) - Math.max(rect.top, 0));
+    const visibleArea = visibleWidth * visibleHeight;
+    const area = Math.max(1, rect.width * rect.height);
+    if (visibleArea / area < 0.2) return Number.NEGATIVE_INFINITY;
+    const distance = Math.abs((rect.left + rect.right) / 2 - width / 2) + Math.abs((rect.top + rect.bottom) / 2 - height / 2);
+    return visibleArea - distance;
+  };
+  const shortContainerFor = element => element?.closest?.("ytd-reel-video-renderer, ytd-shorts, ytd-shorts-player") || null;
+  const bestVisible = candidates => candidates
+    .map(item => ({ item, score: viewportScore(item) }))
+    .filter(candidate => Number.isFinite(candidate.score))
+    .sort((left, right) => right.score - left.score)[0]?.item || null;
+  const currentShortContainer = () => {
+    const videos = [...document.querySelectorAll("ytd-reel-video-renderer video, ytd-shorts video")]
+      .map(video => ({ video, container: shortContainerFor(video) }))
+      .filter(candidate => candidate.container);
+    const activeVideo = bestVisible(videos.map(candidate => candidate.video));
+    const fromVideo = shortContainerFor(activeVideo);
+    if (fromVideo) return fromVideo;
+
     const active = document.querySelector("ytd-reel-video-renderer[is-active], ytd-reel-video-renderer[is-active='true']");
-    if (!active) return {};
-    const link = active.querySelector("ytd-reel-player-header-renderer a[href], #channel-name a[href], ytd-channel-name a[href]");
-    const identity = identityFromHref(link?.getAttribute("href"));
-    return { ...identity, channelId: channelIdFrom(active) || identity.channelId || null };
+    if (active) return active;
+    return bestVisible([...document.querySelectorAll("ytd-reel-video-renderer, ytd-shorts")]);
+  };
+  const isShortOwnerLink = link => link && !link.closest?.("ytd-comments, ytd-comment-thread-renderer, ytd-comment-view-model, ytd-compact-video-renderer, ytd-rich-item-renderer, ytd-reel-shelf-renderer");
+  const shortsOwnerIdentity = () => {
+    const current = currentShortContainer();
+    if (!current) return {};
+    const selectors = [
+      "ytd-reel-player-header-renderer ytd-channel-name a[href]",
+      "ytd-reel-player-header-renderer #channel-name a[href]",
+      "#owner ytd-channel-name a[href]",
+      "#owner #channel-name a[href]",
+      "#channel-name ytd-channel-name a[href]"
+    ];
+    for (const selector of selectors) {
+      const link = current.querySelector(selector);
+      if (!isShortOwnerLink(link)) continue;
+      const identity = identityFromHref(link.getAttribute("href"));
+      if (identity.channelHandle || identity.channelId) return { ...identity, channelId: channelIdFrom(current) || identity.channelId || null };
+    }
+    return {};
   };
   const playableOwnerIdentity = () => {
     const root = document.querySelector("ytd-playables-player-page-renderer, ytd-playables-renderer, ytd-playables-game-renderer, [data-playables-player]");
@@ -97,7 +139,8 @@
   const evaluate = () => {
     clearTimeout(retryTimer);
     const identity = content();
-    chrome.runtime.sendMessage({ type: "tuoitho-navigation", payload: { profileId: "m1-child", managedSessionId: 0, provider, host: location.hostname, path: location.pathname, ...identity } }, response => {
+    const ownerState = identity.contentType === "ShortForm" ? (identity.channelHandle || identity.channelId ? "SHORT_OWNER_FOUND" : "SHORT_OWNER_UNKNOWN") : null;
+    chrome.runtime.sendMessage({ type: "tuoitho-navigation", payload: { profileId: "m1-child", managedSessionId: 0, provider, host: location.hostname, path: location.pathname, ...identity, ownerState } }, response => {
       const result = response || { allowed: true, reason: "SERVICE_UNAVAILABLE", diagnostic: "Tuổi Thơ chưa kết nối." };
       serviceBanner(result.allowed === true && result.reason === "SERVICE_UNAVAILABLE");
       if (result.allowed === false) block(identity); else unblock();
@@ -117,5 +160,8 @@
   new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
   addEventListener("yt-navigate-finish", schedule);
   addEventListener("popstate", schedule);
+  addEventListener("scroll", schedule, true);
+  addEventListener("keydown", event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") schedule(); }, true);
+  if (globalThis.__tuoithoYouTubeTestHooks) globalThis.__tuoithoYouTubeTestHooks = { currentShortContainer, shortsOwnerIdentity, content };
   schedule();
 })();
