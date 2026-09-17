@@ -10,87 +10,90 @@ public sealed class BrowserPolicyListener(
     BrowserRuntimeStatusCache runtimeStatus,
     ILogger<BrowserPolicyListener> logger) : BackgroundService
 {
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(1);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        BrowserControlConfiguration settings;
-        try
-        {
-            settings = BrowserControlConfiguration.Load();
-        }
-        catch (Exception exception)
-        {
-            BrowserPolicyLog.Failed(logger, exception);
-            return;
-        }
-
         while (!stoppingToken.IsCancellationRequested)
         {
+            BrowserControlConfiguration settings;
             try
             {
-                using var pipe = ParentControlPipeSecurity.CreateServer("TuoiTho.BrowserPolicy", [settings.ManagedUserSid]);
-                await pipe.WaitForConnectionAsync(stoppingToken);
-                using var reader = new StreamReader(pipe, leaveOpen: true);
-                var line = await reader.ReadLineAsync(stoppingToken);
-                BrowserNavigationRequest? request;
+                runtimeStatus.SetBrowserPolicyReadiness("STARTING");
+                settings = BrowserControlConfiguration.Load();
+            }
+            catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
+            {
+                var category = CategorizeConfigurationFailure(exception);
+                runtimeStatus.SetBrowserPolicyReadiness("DEGRADED", category);
+                BrowserPolicyLog.Degraded(logger, category, exception);
+                await DelayForRetryAsync(stoppingToken);
+                continue;
+            }
+
+            NamedPipeServerStream pipe;
+            try
+            {
+                pipe = ParentControlPipeSecurity.CreateServer("TuoiTho.BrowserPolicy", [settings.ManagedUserSid]);
+                runtimeStatus.SetBrowserPolicyReadiness("READY");
+            }
+            catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
+            {
+                runtimeStatus.SetBrowserPolicyReadiness("DEGRADED", "PIPE_CREATE_FAILED");
+                BrowserPolicyLog.Degraded(logger, "PIPE_CREATE_FAILED", exception);
+                await DelayForRetryAsync(stoppingToken);
+                continue;
+            }
+
+            using (pipe)
+            {
                 try
                 {
-                    request = string.IsNullOrWhiteSpace(line) ? null : JsonSerializer.Deserialize<BrowserNavigationRequest>(line);
-                }
-                catch (JsonException)
-                {
-                    request = null;
-                }
+                    await pipe.WaitForConnectionAsync(stoppingToken);
+                    using var reader = new StreamReader(pipe, leaveOpen: true);
+                    var line = await reader.ReadLineAsync(stoppingToken);
+                    BrowserNavigationRequest? request;
+                    try { request = string.IsNullOrWhiteSpace(line) ? null : JsonSerializer.Deserialize<BrowserNavigationRequest>(line); }
+                    catch (JsonException) { request = null; }
 
-                // A client must first write before Windows permits impersonation. The ACL blocks
-                // unrelated accounts and the actual impersonated SID is checked again below.
-                var sid = request is null ? null : ParentControlListener.GetAuthenticatedSid(pipe);
-                var result = await EvaluateAsync(request, sid, settings, stoppingToken);
-                if (request is { IsDiagnosticProbe: false } && result.Reason is not "REJECTED_BROWSER_REQUEST" and not "PROFILE_OR_SESSION_MISMATCH")
-                    runtimeStatus.Record(result);
-                using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
-                await writer.WriteLineAsync(JsonSerializer.Serialize(result));
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                BrowserPolicyLog.Failed(logger, exception);
+                    // A client must write first before Windows permits impersonation. The ACL plus the
+                    // actual impersonated SID check prevent an extension payload from choosing an identity.
+                    var sid = request is null ? null : ParentControlListener.GetAuthenticatedSid(pipe);
+                    var result = await EvaluateAsync(request, sid, settings, stoppingToken);
+                    if (request is { IsDiagnosticProbe: false } && result.Reason is not "REJECTED_BROWSER_REQUEST" and not "PROFILE_OR_SESSION_MISMATCH") runtimeStatus.Record(result);
+                    using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+                    await writer.WriteLineAsync(JsonSerializer.Serialize(result));
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+                catch (Exception exception)
+                {
+                    // A malformed/disconnected client must never take down the listener.
+                    BrowserPolicyLog.RequestFailed(logger, exception);
+                }
             }
         }
     }
 
-    private async Task<BrowserNavigationResponse> EvaluateAsync(
-        BrowserNavigationRequest? request,
-        string? sid,
-        BrowserControlConfiguration settings,
-        CancellationToken token)
+    private static async Task DelayForRetryAsync(CancellationToken token)
     {
-        if (request is null ||
-            sid is null ||
-            !string.Equals(sid, settings.ManagedUserSid, StringComparison.OrdinalIgnoreCase) ||
-            !BrowserNavigationValidator.IsValid(request, settings.ExtensionId))
-        {
-            return new(false, "REJECTED_BROWSER_REQUEST");
-        }
+        try { await Task.Delay(RetryDelay, token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
 
+    private static string CategorizeConfigurationFailure(Exception exception) => exception switch
+    {
+        FileNotFoundException => "CONFIG_MISSING",
+        UnauthorizedAccessException => "CONFIG_INACCESSIBLE",
+        _ => "CONFIG_INVALID"
+    };
+
+    private async Task<BrowserNavigationResponse> EvaluateAsync(BrowserNavigationRequest? request, string? sid, BrowserControlConfiguration settings, CancellationToken token)
+    {
+        if (request is null || sid is null || !string.Equals(sid, settings.ManagedUserSid, StringComparison.OrdinalIgnoreCase) || !BrowserNavigationValidator.IsValid(request, settings.ExtensionId)) return new(false, "REJECTED_BROWSER_REQUEST");
         var policy = await policies.LoadAsync(request.ProfileId, token);
-        if (policy is null ||
-            policy.ManagedSessionId != request.ManagedSessionId ||
-            !string.Equals(policy.ManagedUserSid, sid, StringComparison.OrdinalIgnoreCase))
-        {
-            return new(false, "PROFILE_OR_SESSION_MISMATCH");
-        }
-
+        if (policy is null || policy.ManagedSessionId != request.ManagedSessionId || !string.Equals(policy.ManagedUserSid, sid, StringComparison.OrdinalIgnoreCase)) return new(false, "PROFILE_OR_SESSION_MISMATCH");
         var rules = await webPolicies.GetRulesAsync(policy.ProfileId, token);
-        var navigation = new BrowserNavigation(
-            request.Provider,
-            request.Host,
-            request.Path,
-            request.ContentType,
-            request.ChannelId,
-            request.ChannelHandle,
-            request.TikTokCreator);
+        var navigation = new BrowserNavigation(request.Provider, request.Host, request.Path, request.ContentType, request.ChannelId, request.ChannelHandle, request.TikTokCreator);
         var decision = WebPolicyEngine.Evaluate(navigation, rules);
         return new(decision.Allowed, decision.Reason, decision.MatchedRule?.DisplayLabel);
     }
@@ -98,9 +101,8 @@ public sealed class BrowserPolicyListener(
 
 internal static partial class BrowserPolicyLog
 {
-    [LoggerMessage(EventId = 2600, Level = LogLevel.Warning, Message = "Browser policy pipe disabled until browser-control.json is installed.")]
-    public static partial void Disabled(ILogger logger);
-
-    [LoggerMessage(EventId = 2601, Level = LogLevel.Warning, Message = "Browser policy pipe request failed.")]
-    public static partial void Failed(ILogger logger, Exception exception);
+    [LoggerMessage(EventId = 2602, Level = LogLevel.Warning, Message = "Browser policy listener is degraded: {Category}.")]
+    public static partial void Degraded(ILogger logger, string category, Exception exception);
+    [LoggerMessage(EventId = 2603, Level = LogLevel.Warning, Message = "Browser policy pipe request failed.")]
+    public static partial void RequestFailed(ILogger logger, Exception exception);
 }

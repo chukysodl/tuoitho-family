@@ -26,8 +26,9 @@ Write-Output "M1 START: SID=$sid Session=$session TestMode=true Quota=3"
 $serviceExe = Join-Path $root 'src/TuoiTho.Service/bin/Release/net10.0-windows/TuoiTho.Service.exe'
 $agentExe = Join-Path $root 'src/TuoiTho.SessionAgent/bin/Release/net10.0-windows/TuoiTho.SessionAgent.exe'
 $parentExe = Join-Path $root 'src/TuoiTho.Parent/bin/Release/net10.0-windows/TuoiTho.Parent.exe'
+$browserHostExe = Join-Path $root 'src/TuoiTho.BrowserHost/bin/Release/net10.0-windows/TuoiTho.BrowserHost.exe'
 $env:SessionAgent__ParentExecutablePath = $parentExe
-foreach ($exe in @($serviceExe, $agentExe, $parentExe)) {
+foreach ($exe in @($serviceExe, $agentExe, $parentExe, $browserHostExe)) {
     if (-not (Test-Path $exe)) { Write-Output "M1 START FAIL: Missing built executable: $exe"; exit 2 }
 }
 
@@ -51,6 +52,14 @@ function Test-M1ParentServiceReady {
     catch { return $false }
 }
 
+function Test-M1BrowserPolicyReady {
+    param([string]$BrowserHost)
+    try {
+        $output = & $BrowserHost --service-probe 2>&1
+        if ($LASTEXITCODE -eq 0 -and (($output | Out-String) -match '"(Allowed|allowed)"')) { return @{ Ready = $true; Detail = 'PASS' } }
+        return @{ Ready = $false; Detail = (($output | Out-String).Trim()) }
+    } catch { return @{ Ready = $false; Detail = $_.Exception.Message } }
+}
 # Background components stay hidden. Parent is launched only after the fresh Service proves protocol readiness.
 $service = Start-Process -FilePath $serviceExe -WorkingDirectory (Split-Path $serviceExe) -WindowStyle Hidden -PassThru
 $ready = $false
@@ -64,6 +73,25 @@ if (-not $ready) {
     Write-Output 'M1 START FAIL: Parent Service did not become ready with the current protocol.'
     exit 3
 }
+Write-Output 'M1 START: ParentControl: PASS'
+
+$browserConfig = Join-Path $env:ProgramData 'TuoiTho\browser-control.json'
+if (Test-Path $browserConfig) {
+    $browserReady = $false; $browserDetail = ''
+    for ($attempt = 1; $attempt -le 12; $attempt++) {
+        if ($service.HasExited) { break }
+        $probe = Test-M1BrowserPolicyReady $browserHostExe
+        $browserDetail = $probe.Detail
+        if ($probe.Ready) { $browserReady = $true; break }
+        Start-Sleep -Milliseconds 500
+    }
+    if (-not $browserReady) {
+        if (-not $service.HasExited) { Stop-Process -Id $service.Id }
+        Write-Output ("M1 START FAIL: BrowserPolicy: FAIL - " + $browserDetail)
+        exit 4
+    }
+    Write-Output 'M1 START: BrowserPolicy: PASS'
+} else { Write-Output 'M1 START: BrowserPolicy: SKIPPED (browser-control.json chưa được cài).' }
 
 $agent = Start-Process -FilePath $agentExe -WorkingDirectory (Split-Path $agentExe) -WindowStyle Hidden -PassThru
 $parent = Start-Process -FilePath $parentExe -WorkingDirectory (Split-Path $parentExe) -PassThru

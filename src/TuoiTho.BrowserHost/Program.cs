@@ -136,16 +136,19 @@ internal static class BrowserPolicyPipeClient
     public static async Task<BrowserNavigationResponse> EvaluateAsync(BrowserNavigationRequest request, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(2));
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
         using var pipe = new NamedPipeClientStream(".", "TuoiTho.BrowserPolicy", PipeDirection.InOut, PipeOptions.Asynchronous);
-        await pipe.ConnectAsync(timeout.Token);
+        try { await pipe.ConnectAsync(timeout.Token); }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested) { throw new IOException("PIPE_CONNECT_TIMEOUT"); }
+        catch (IOException exception) { throw new IOException("PIPE_NOT_AVAILABLE", exception); }
         using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
         await writer.WriteLineAsync(JsonSerializer.Serialize(request));
         using var reader = new StreamReader(pipe, leaveOpen: true);
-        var response = await reader.ReadLineAsync(timeout.Token);
-        return string.IsNullOrWhiteSpace(response)
-            ? throw new IOException("Service returned no browser policy response.")
-            : JsonSerializer.Deserialize<BrowserNavigationResponse>(response)
-                ?? throw new JsonException("Service returned invalid browser policy response.");
+        string? response;
+        try { response = await reader.ReadLineAsync(timeout.Token); }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested) { throw new IOException("SERVICE_RESPONSE_TIMEOUT"); }
+        if (string.IsNullOrWhiteSpace(response)) throw new IOException("SERVICE_RESPONSE_TIMEOUT");
+        try { return JsonSerializer.Deserialize<BrowserNavigationResponse>(response) ?? throw new JsonException(); }
+        catch (JsonException exception) { throw new IOException("INVALID_RESPONSE", exception); }
     }
 }
