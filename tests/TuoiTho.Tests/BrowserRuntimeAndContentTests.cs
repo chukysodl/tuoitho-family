@@ -29,6 +29,8 @@ public sealed class BrowserRuntimeAndContentTests
         Assert.Contains("contentType: \"Playable\"", script, StringComparison.Ordinal);
         Assert.Contains("ytd-playables-player-page-renderer", script, StringComparison.Ordinal);
         Assert.Contains("root.querySelector(selector)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("a[href^='/@']", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("a[href^='/channel/']", script, StringComparison.Ordinal);
         Assert.Contains("channelIdFrom(root)", script, StringComparison.Ordinal);
         Assert.Contains("identity.contentType === \"Playable\"", script, StringComparison.Ordinal);
         Assert.DoesNotContain("document.querySelector('a[href^=\"/@\"]')", script, StringComparison.Ordinal);

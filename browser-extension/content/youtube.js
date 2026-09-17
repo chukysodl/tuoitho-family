@@ -48,12 +48,10 @@
     const root = document.querySelector("ytd-playables-player-page-renderer, ytd-playables-renderer, ytd-playables-game-renderer, [data-playables-player]");
     if (!root) return {};
     const selectors = [
-      "ytd-channel-name a[href*='/@']",
-      "ytd-channel-name a[href*='/channel/']",
-      "#channel-name a[href*='/@']",
-      "#channel-name a[href*='/channel/']",
-      "a[href^='/@']",
-      "a[href^='/channel/']"
+      "[data-playables-publisher] a[href]",
+      "ytd-video-owner-renderer #channel-name a[href]",
+      "#publisher ytd-channel-name a[href]",
+      "#owner ytd-channel-name a[href]"
     ];
     for (const selector of selectors) {
       const link = root.querySelector(selector);
