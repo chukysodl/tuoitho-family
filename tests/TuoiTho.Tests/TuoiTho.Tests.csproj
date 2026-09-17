@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\TuoiTho.Core\TuoiTho.Core.csproj" />
+    <ProjectReference Include="..\..\src\TuoiTho.BrowserHost\TuoiTho.BrowserHost.csproj" />
     <ProjectReference Include="..\..\src\TuoiTho.Storage\TuoiTho.Storage.csproj" />
     <ProjectReference Include="..\..\src\TuoiTho.Service\TuoiTho.Service.csproj" />
     <ProjectReference Include="..\..\src\TuoiTho.SessionAgent\TuoiTho.SessionAgent.csproj" />

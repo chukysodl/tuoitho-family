@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Cryptography;
@@ -6,6 +5,7 @@ using System.Security.Principal;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TuoiTho.Core.Policy;
+using TuoiTho.BrowserHost;
 
 if (args is ["--bootstrap-config", var extensionDirectory, var configurationPath])
 {
@@ -114,6 +114,7 @@ internal static class BrowserDeploymentBootstrapper
 
         Directory.CreateDirectory(directory);
         File.WriteAllText(configurationPath, JsonSerializer.Serialize(configuration, IndentedJson));
+        File.WriteAllText(Path.Combine(extensionDirectory, "m4-runtime-config.js"), $"export const TEST_MODE = {configuration.TestMode.ToString().ToLowerInvariant()};{Environment.NewLine}");
         return extensionId;
     }
 
@@ -127,43 +128,6 @@ internal static class BrowserDeploymentBootstrapper
             characters[index * 2 + 1] = (char)('a' + (keyHash[index] & 0x0f));
         }
         return new string(characters);
-    }
-}
-
-internal static class NativeMessaging
-{
-    public static async Task<BrowserNavigationRequest?> ReadAsync(Stream input, CancellationToken token)
-    {
-        var header = new byte[4];
-        if (!await ReadExactlyAsync(input, header, token)) return null;
-        var length = BinaryPrimitives.ReadInt32LittleEndian(header);
-        if (length is < 1 or > BrowserNavigationValidator.MaximumMessageBytes) return null;
-        var payload = new byte[length];
-        if (!await ReadExactlyAsync(input, payload, token)) return null;
-        try { return JsonSerializer.Deserialize<BrowserNavigationRequest>(payload); }
-        catch (JsonException) { return null; }
-    }
-
-    public static async Task WriteAsync(Stream output, BrowserNavigationResponse response, CancellationToken token)
-    {
-        var data = JsonSerializer.SerializeToUtf8Bytes(response);
-        var header = new byte[4];
-        BinaryPrimitives.WriteInt32LittleEndian(header, data.Length);
-        await output.WriteAsync(header, token);
-        await output.WriteAsync(data, token);
-        await output.FlushAsync(token);
-    }
-
-    private static async Task<bool> ReadExactlyAsync(Stream stream, byte[] buffer, CancellationToken token)
-    {
-        var read = 0;
-        while (read < buffer.Length)
-        {
-            var count = await stream.ReadAsync(buffer.AsMemory(read), token);
-            if (count == 0) return false;
-            read += count;
-        }
-        return true;
     }
 }
 
