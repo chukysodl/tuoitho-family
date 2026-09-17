@@ -148,7 +148,7 @@ public sealed class WebPolicyEngine
 }
 
 /// <summary>Untrusted browser navigation payload, bounded before deserialization by BrowserHost.</summary>
-public sealed record BrowserNavigationRequest(string ExtensionId, string ProfileId, int ManagedSessionId, BrowserProvider Provider, string Host, string Path, BrowserContentType ContentType, string? ChannelId = null, string? ChannelHandle = null, string? TikTokCreator = null, bool IsDiagnosticProbe = false, string? OwnerState = null);
+public sealed record BrowserNavigationRequest(string ExtensionId, string ProfileId, int ManagedSessionId, BrowserProvider Provider, string Host, string Path, BrowserContentType ContentType, string? ChannelId = null, string? ChannelHandle = null, string? TikTokCreator = null, bool IsDiagnosticProbe = false, string? OwnerState = null, string? ShortContainer = null, int? OwnerCandidateCount = null, string? OwnerSource = null);
 public sealed record BrowserNavigationResponse(bool Allowed, string Reason, string? DisplayLabel = null, string? Diagnostic = null);
 
 public static class BrowserNavigationValidator
@@ -160,6 +160,10 @@ public static class BrowserNavigationValidator
         if (request.ProfileId.Length is < 1 or > 128 || request.ManagedSessionId < 0 || request.Host.Length is < 1 or > 255 || request.Path.Length > 2048) return false;
         if (request.OwnerState is not null && request.OwnerState is not ("SHORT_OWNER_FOUND" or "SHORT_OWNER_UNKNOWN")) return false;
         if (request.OwnerState is not null && request.ContentType != BrowserContentType.ShortForm) return false;
+        if (request.ContentType != BrowserContentType.ShortForm && (request.ShortContainer is not null || request.OwnerCandidateCount is not null || request.OwnerSource is not null)) return false;
+        if (request.ShortContainer is not null && !System.Text.RegularExpressions.Regex.IsMatch(request.ShortContainer, "^[a-z0-9-]{1,64}$")) return false;
+        if (request.OwnerCandidateCount is < 0 or > 16) return false;
+        if (request.OwnerSource is not null && request.OwnerSource is not ("ANCHOR" or "CHANNEL_ID" or "VISIBLE_HANDLE_TEXT" or "NONE")) return false;
         return request.Provider switch
         {
             BrowserProvider.YouTube => WebIdentityNormalizer.IsYouTubeHost(request.Host),

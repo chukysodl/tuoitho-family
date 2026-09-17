@@ -55,37 +55,79 @@
     .map(item => ({ item, score: viewportScore(item) }))
     .filter(candidate => Number.isFinite(candidate.score))
     .sort((left, right) => right.score - left.score)[0]?.item || null;
-  const currentShortContainer = () => {
+  const currentShortContext = () => {
     const videos = [...document.querySelectorAll("ytd-reel-video-renderer video, ytd-shorts video")]
       .map(video => ({ video, container: shortContainerFor(video) }))
       .filter(candidate => candidate.container);
     const activeVideo = bestVisible(videos.map(candidate => candidate.video));
     const fromVideo = shortContainerFor(activeVideo);
-    if (fromVideo) return fromVideo;
+    if (fromVideo) return { video: activeVideo, container: fromVideo, surface: fromVideo.closest?.("ytd-shorts") || fromVideo.parentElement || fromVideo };
 
     const active = document.querySelector("ytd-reel-video-renderer[is-active], ytd-reel-video-renderer[is-active='true']");
-    if (active) return active;
-    return bestVisible([...document.querySelectorAll("ytd-reel-video-renderer, ytd-shorts")]);
+    const container = active || bestVisible([...document.querySelectorAll("ytd-reel-video-renderer, ytd-shorts")]);
+    if (!container) return null;
+    return { video: bestVisible([...container.querySelectorAll?.("video")] || []), container, surface: container.closest?.("ytd-shorts") || container.parentElement || container };
   };
-  const isShortOwnerLink = link => link && !link.closest?.("ytd-comments, ytd-comment-thread-renderer, ytd-comment-view-model, ytd-compact-video-renderer, ytd-rich-item-renderer, ytd-reel-shelf-renderer");
-  const shortsOwnerIdentity = () => {
-    const current = currentShortContainer();
-    if (!current) return {};
-    const selectors = [
-      "ytd-reel-player-header-renderer ytd-channel-name a[href]",
-      "ytd-reel-player-header-renderer #channel-name a[href]",
-      "#owner ytd-channel-name a[href]",
-      "#owner #channel-name a[href]",
-      "#channel-name ytd-channel-name a[href]"
-    ];
-    for (const selector of selectors) {
-      const link = current.querySelector(selector);
-      if (!isShortOwnerLink(link)) continue;
-      const identity = identityFromHref(link.getAttribute("href"));
-      if (identity.channelHandle || identity.channelId) return { ...identity, channelId: channelIdFrom(current) || identity.channelId || null };
+  const currentShortContainer = () => currentShortContext()?.container || null;
+  const excludedShortContext = "ytd-comments, ytd-comment-thread-renderer, ytd-comment-view-model, ytd-compact-video-renderer, ytd-rich-item-renderer, ytd-reel-shelf-renderer, ytd-shorts-remix-renderer";
+  const shortOwnerRegions = "ytd-reel-player-header-renderer, ytd-reel-player-overlay-renderer, ytd-reel-player-metadata-renderer, [data-shorts-owner], #owner, #channel-name, ytd-channel-name";
+  const distanceBetween = (left, right) => {
+    if (!left || !right || typeof left.getBoundingClientRect !== "function" || typeof right.getBoundingClientRect !== "function") return Number.POSITIVE_INFINITY;
+    const a = left.getBoundingClientRect();
+    const b = right.getBoundingClientRect();
+    return Math.abs((a.left + a.right) / 2 - (b.left + b.right) / 2) + Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2);
+  };
+  const candidateBelongsToCurrentShort = (candidate, context) => {
+    if (!candidate || candidate.isConnected === false || candidate.closest?.(excludedShortContext)) return false;
+    if (!Number.isFinite(viewportScore(candidate))) return false;
+    const reel = shortContainerFor(candidate);
+    if (reel && reel !== context.container) return false;
+    if (reel === context.container || context.container.contains?.(candidate)) return true;
+    const region = candidate.closest?.(shortOwnerRegions);
+    return Boolean(region && context.surface?.contains?.(candidate) && distanceBetween(candidate, context.video) < (globalThis.innerHeight || 800) * 0.9);
+  };
+  const handleIdentityFromText = element => {
+    const visibleText = (element?.textContent || "").trim().normalize("NFC");
+    const match = visibleText.match(/^(@[\p{L}\p{N}._-]{1,100})(?:\s|$)/u);
+    return match ? { channelHandle: match[1] } : {};
+  };
+  const addCandidate = (candidates, identity, source, element, context, bonus = 0) => {
+    if (!identity.channelHandle && !identity.channelId) return;
+    const candidate = element ? viewportScore(element) - distanceBetween(element, context.video) + bonus : 1_000_000 + bonus;
+    if (!Number.isFinite(candidate)) return;
+    candidates.push({ identity: { ...identity, channelId: channelIdFrom(context.container) || identity.channelId || null }, source, score: candidate });
+  };
+  const shortsOwnerResolution = () => {
+    const context = currentShortContext();
+    const diagnostics = { shortContainer: context?.container?.tagName?.toLowerCase?.() || null, ownerCandidateCount: 0, ownerSource: "NONE" };
+    if (!context) return { identity: {}, diagnostics };
+
+    const candidates = [];
+    const channelId = channelIdFrom(context.container);
+    if (channelId) addCandidate(candidates, { channelId }, "CHANNEL_ID", null, context, 10_000);
+    const anchorSelector = "a[href^='/@'], a[href*='youtube.com/@'], a[href^='/channel/']";
+    const roots = [...new Set([context.container, context.surface].filter(Boolean))];
+    for (const root of roots) for (const link of root.querySelectorAll?.(anchorSelector) || []) {
+      if (!candidateBelongsToCurrentShort(link, context)) continue;
+      addCandidate(candidates, identityFromHref(link.getAttribute("href")), "ANCHOR", link, context, root === context.container ? 1_000 : 0);
     }
-    return {};
+    if (!candidates.length) for (const root of roots) for (const element of root.querySelectorAll?.(shortOwnerRegions) || []) {
+      if (!candidateBelongsToCurrentShort(element, context)) continue;
+      addCandidate(candidates, handleIdentityFromText(element), "VISIBLE_HANDLE_TEXT", element, context, root === context.container ? 500 : 0);
+    }
+
+    const unique = new Map();
+    for (const candidate of candidates) {
+      const key = candidate.identity.channelId ? `id:${candidate.identity.channelId}` : `handle:${candidate.identity.channelHandle.toLowerCase()}`;
+      if (!unique.has(key) || unique.get(key).score < candidate.score) unique.set(key, candidate);
+    }
+    const ranked = [...unique.values()].sort((left, right) => right.score - left.score);
+    diagnostics.ownerCandidateCount = ranked.length;
+    if (!ranked.length || (ranked.length > 1 && ranked[0].score - ranked[1].score < 250)) return { identity: {}, diagnostics };
+    diagnostics.ownerSource = ranked[0].source;
+    return { identity: ranked[0].identity, diagnostics };
   };
+  const shortsOwnerIdentity = () => shortsOwnerResolution().identity;
   const playableOwnerIdentity = () => {
     const root = document.querySelector("ytd-playables-player-page-renderer, ytd-playables-renderer, ytd-playables-game-renderer, [data-playables-player]");
     if (!root) return {};
@@ -131,7 +173,7 @@
   const content = () => {
     const path = location.pathname;
     if (/^\/(?:@|channel\/|c\/|user\/)/i.test(path)) return { contentType: "Channel", ...channelPageIdentity() };
-    if (path.startsWith("/shorts/")) return { contentType: "ShortForm", ...shortsOwnerIdentity() };
+    if (path.startsWith("/shorts/")) { const short = shortsOwnerResolution(); return { contentType: "ShortForm", ...short.identity, ...short.diagnostics }; }
     if (path.startsWith("/playables/")) return { contentType: "Playable", ...playableOwnerIdentity() };
     if (path === "/watch") return { contentType: "Video", ...ownerIdentity() };
     return { contentType: "Site" };
@@ -162,6 +204,6 @@
   addEventListener("popstate", schedule);
   addEventListener("scroll", schedule, true);
   addEventListener("keydown", event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") schedule(); }, true);
-  if (globalThis.__tuoithoYouTubeTestHooks) globalThis.__tuoithoYouTubeTestHooks = { currentShortContainer, shortsOwnerIdentity, content };
+  if (globalThis.__tuoithoYouTubeTestHooks) globalThis.__tuoithoYouTubeTestHooks = { currentShortContainer, currentShortContext, shortsOwnerIdentity, shortsOwnerResolution, content };
   schedule();
 })();

@@ -60,7 +60,7 @@ public sealed class BrowserPolicyListener(
                     // actual impersonated SID check prevent an extension payload from choosing an identity.
                     var sid = request is null ? null : ParentControlListener.GetAuthenticatedSid(pipe);
                     var result = await EvaluateAsync(request, sid, settings, stoppingToken);
-                    if (request is { IsDiagnosticProbe: false } && result.Reason is not "REJECTED_BROWSER_REQUEST" and not "PROFILE_OR_SESSION_MISMATCH") runtimeStatus.Record(result, request.ContentType == BrowserContentType.ShortForm ? request.OwnerState : null);
+                    if (request is { IsDiagnosticProbe: false } && result.Reason is not "REJECTED_BROWSER_REQUEST" and not "PROFILE_OR_SESSION_MISMATCH") runtimeStatus.Record(result, settings.TestMode && request.ContentType == BrowserContentType.ShortForm ? request.OwnerState : null, settings.TestMode && request.ContentType == BrowserContentType.ShortForm ? request.ShortContainer : null, settings.TestMode && request.ContentType == BrowserContentType.ShortForm ? request.OwnerCandidateCount : null, settings.TestMode && request.ContentType == BrowserContentType.ShortForm ? request.OwnerSource : null);
                     using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
                     await writer.WriteLineAsync(JsonSerializer.Serialize(result));
                 }

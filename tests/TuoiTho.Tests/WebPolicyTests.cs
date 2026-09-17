@@ -105,10 +105,13 @@ public sealed class WebPolicyTests
         Assert.False(BrowserNavigationValidator.IsValid(request, "right"));
         var invalidOwnerState = new BrowserNavigationRequest("right", "child", 7, BrowserProvider.YouTube, "youtube.com", "/shorts/1", BrowserContentType.ShortForm, OwnerState: "UNTRUSTED");
         Assert.False(BrowserNavigationValidator.IsValid(invalidOwnerState, "right"));
-        var validShortOwnerState = new BrowserNavigationRequest("right", "child", 7, BrowserProvider.YouTube, "youtube.com", "/shorts/1", BrowserContentType.ShortForm, OwnerState: "SHORT_OWNER_FOUND");
+        var validShortOwnerState = new BrowserNavigationRequest("right", "child", 7, BrowserProvider.YouTube, "youtube.com", "/shorts/1", BrowserContentType.ShortForm, OwnerState: "SHORT_OWNER_FOUND", ShortContainer: "ytd-reel-video-renderer", OwnerCandidateCount: 1, OwnerSource: "ANCHOR");
         var nonShortOwnerState = validShortOwnerState with { ContentType = BrowserContentType.Video };
         Assert.True(BrowserNavigationValidator.IsValid(validShortOwnerState, "right"));
         Assert.False(BrowserNavigationValidator.IsValid(nonShortOwnerState, "right"));
+        Assert.False(BrowserNavigationValidator.IsValid(validShortOwnerState with { OwnerSource = "UNTRUSTED" }, "right"));
+        Assert.False(BrowserNavigationValidator.IsValid(validShortOwnerState with { ShortContainer = "<script>" }, "right"));
+        Assert.False(BrowserNavigationValidator.IsValid(validShortOwnerState with { OwnerCandidateCount = 17 }, "right"));
         Assert.DoesNotContain(typeof(BrowserNavigationRequest).GetProperties(), property => property.Name.Contains("Action", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Command", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(typeof(WebRule).GetProperties(), property => property.Name.Contains("History", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Cookie", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Search", StringComparison.OrdinalIgnoreCase));
     }

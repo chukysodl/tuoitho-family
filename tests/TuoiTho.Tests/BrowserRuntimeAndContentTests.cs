@@ -23,8 +23,12 @@ public sealed class BrowserRuntimeAndContentTests
     public void ShortOwnerDiagnosticIsRuntimeOnlyAndClearedByTheNextNavigation()
     {
         var cache = new BrowserRuntimeStatusCache();
-        cache.Record(new BrowserNavigationResponse(false, "EXPLICIT_BLOCK"), "SHORT_OWNER_FOUND");
-        Assert.Equal("SHORT_OWNER_FOUND", cache.Snapshot().ShortOwnerState);
+        cache.Record(new BrowserNavigationResponse(false, "EXPLICIT_BLOCK"), "SHORT_OWNER_FOUND", "ytd-reel-video-renderer", 1, "ANCHOR");
+        var shortStatus = cache.Snapshot();
+        Assert.Equal("SHORT_OWNER_FOUND", shortStatus.ShortOwnerState);
+        Assert.Equal("ytd-reel-video-renderer", shortStatus.ShortContainer);
+        Assert.Equal(1, shortStatus.ShortOwnerCandidateCount);
+        Assert.Equal("ANCHOR", shortStatus.ShortOwnerSource);
 
         cache.Record(new BrowserNavigationResponse(true, "NO_MATCH"));
         Assert.Null(cache.Snapshot().ShortOwnerState);
@@ -40,8 +44,9 @@ public sealed class BrowserRuntimeAndContentTests
         Assert.Contains("contentType: \"Playable\"", script, StringComparison.Ordinal);
         Assert.Contains("ytd-playables-player-page-renderer", script, StringComparison.Ordinal);
         Assert.Contains("root.querySelector(selector)", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("a[href^='/@']", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("a[href^='/channel/']", script, StringComparison.Ordinal);
+        Assert.Contains("candidateBelongsToCurrentShort", script, StringComparison.Ordinal);
+        Assert.Contains("VISIBLE_HANDLE_TEXT", script, StringComparison.Ordinal);
+        Assert.Contains("ownerCandidateCount", script, StringComparison.Ordinal);
         Assert.Contains("channelIdFrom(root)", script, StringComparison.Ordinal);
         Assert.Contains("identity.contentType === \"Playable\"", script, StringComparison.Ordinal);
         Assert.DoesNotContain("document.querySelector('a[href^=\"/@\"]')", script, StringComparison.Ordinal);
