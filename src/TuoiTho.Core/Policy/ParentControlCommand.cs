@@ -6,5 +6,7 @@ public sealed record ParentObservedApp(AppIdentity Identity,AppClassification Cl
 public sealed record ParentAppDiscoveryDiagnostics(DateTimeOffset? LastScanAtUtc,int ProcessesExamined,int AppsDiscovered,int AppsSkippedInaccessible,string? DiscoveryError,int UserApplications=0,int BackgroundHelpers=0,int SystemProtected=0);
 public sealed record ParentAppControlStatus(DefaultAppPolicy DefaultPolicy,IReadOnlyList<ParentObservedApp> ObservedApps,ParentAppDiscoveryDiagnostics? Discovery=null,ParentAppEnforcementStatus? Enforcement=null,bool TestMode=false);
 public sealed record ParentControlStatus(string ProfileId,int ManagedSessionId,bool TestMode,int UsedMinutes,int QuotaMinutes,int GrantMinutes,int RemainingMinutes,string State,ParentActivityDiagnostics? Diagnostics=null,double AllowedSeconds=0,double RemainingSeconds=0,ParentAppControlStatus? Apps=null,ParentWebControlStatus? Web=null);
-public sealed record ParentWebControlStatus(IReadOnlyList<WebRule> Rules);
+/// <summary>Ephemeral browser health only; this deliberately contains no URL or browsing history.</summary>
+public sealed record ParentBrowserRuntimeStatus(bool ExtensionConnected, DateTimeOffset? LastCheckedAtUtc, string LastResult);
+public sealed record ParentWebControlStatus(IReadOnlyList<WebRule> Rules, ParentBrowserRuntimeStatus? RuntimeStatus = null);
 public sealed record ParentControlResult(bool Accepted,string? Error,DeviceTimePolicy? Policy=null,ParentControlStatus? Status=null,string? Message=null);

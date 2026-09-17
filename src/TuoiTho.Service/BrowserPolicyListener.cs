@@ -7,6 +7,7 @@ namespace TuoiTho.Service;
 public sealed class BrowserPolicyListener(
     IDeviceTimePolicyStore policies,
     IWebPolicyStore webPolicies,
+    BrowserRuntimeStatusCache runtimeStatus,
     ILogger<BrowserPolicyListener> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,6 +45,8 @@ public sealed class BrowserPolicyListener(
                 // unrelated accounts and the actual impersonated SID is checked again below.
                 var sid = request is null ? null : ParentControlListener.GetAuthenticatedSid(pipe);
                 var result = await EvaluateAsync(request, sid, settings, stoppingToken);
+                if (request is { IsDiagnosticProbe: false } && result.Reason is not "REJECTED_BROWSER_REQUEST" and not "PROFILE_OR_SESSION_MISMATCH")
+                    runtimeStatus.Record(result);
                 using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
                 await writer.WriteLineAsync(JsonSerializer.Serialize(result));
             }

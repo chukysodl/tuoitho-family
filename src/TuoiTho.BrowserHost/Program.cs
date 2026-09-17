@@ -13,9 +13,26 @@ if (args is ["--bootstrap-config", var extensionDirectory, var configurationPath
     return;
 }
 
+if (args is ["--service-probe"])
+{
+    try
+    {
+        var probeConfig = BrowserControlConfiguration.Load();
+        var probe = new BrowserNavigationRequest(probeConfig.ExtensionId, probeConfig.ProfileId, probeConfig.ManagedSessionId,
+            BrowserProvider.YouTube, "www.youtube.com", "/", BrowserContentType.Site, IsDiagnosticProbe: true);
+        var result = await BrowserPolicyPipeClient.EvaluateAsync(probe, CancellationToken.None);
+        Console.WriteLine(JsonSerializer.Serialize(result));
+    }
+    catch (Exception exception)
+    {
+        Console.Error.WriteLine($"Service probe failed: {exception.Message}");
+        Environment.ExitCode = 4;
+    }
+    return;
+}
 if (args.Length != 0)
 {
-    Console.Error.WriteLine("Usage: TuoiTho.BrowserHost [--bootstrap-config <extension-directory> <configuration-path>]");
+    Console.Error.WriteLine("Usage: TuoiTho.BrowserHost [--bootstrap-config <extension-directory> <configuration-path> | --service-probe]");
     Environment.ExitCode = 2;
     return;
 }

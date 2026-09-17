@@ -21,17 +21,19 @@ public sealed class ParentControlService : IDisposable
     private readonly AppEnforcementAuditTrail? appEnforcementAudit;
     private ParentAppDiscoveryDiagnostics? lastAppDiscovery;
     private readonly IWebPolicyStore? webPolicies;
+    private readonly BrowserRuntimeStatusCache? browserRuntime;
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
     public ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes,
         ActivitySampleCache? activityCache = null, WindowsSessionEventSource? sessionEventSource = null, SessionTimeEngine? timeEngine = null,
         IAppPolicyStore? appPolicies = null, AppPolicyEngine? appPolicyEngine = null, IManagedSessionAppDiscovery? appDiscovery = null,
-        AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null, IWebPolicyStore? webPolicies = null)
+        AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null, IWebPolicyStore? webPolicies = null,
+        BrowserRuntimeStatusCache? browserRuntime = null)
     {
         this.store = store; this.usage = usage; this.clock = clock; this.engine = engine; this.changes = changes;
         this.activityCache = activityCache; this.sessionEventSource = sessionEventSource; this.timeEngine = timeEngine;
         this.appPolicies = appPolicies; this.appPolicyEngine = appPolicyEngine; this.appDiscovery = appDiscovery;
-        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies;
+        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies; this.browserRuntime = browserRuntime;
     }
 
     public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes)
@@ -227,7 +229,7 @@ public sealed class ParentControlService : IDisposable
                 return new ParentObservedApp(a.Identity, a.Classification, evaluation.Decision, evaluation.Reason, a.LastSeenUtc, explicitRule, AppEnforcementText(a.Classification, explicitRule, enforcement));
             }).ToArray(), lastAppDiscovery, enforcement, policy.TestMode);
         }
-        var web = webPolicies is null ? null : new ParentWebControlStatus(await webPolicies.GetRulesAsync(policy.ProfileId, token));
+        var web = webPolicies is null ? null : new ParentWebControlStatus(await webPolicies.GetRulesAsync(policy.ProfileId, token), browserRuntime?.Snapshot());
         return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, web);
     }
 

@@ -148,7 +148,7 @@ public sealed class WebPolicyEngine
 }
 
 /// <summary>Untrusted browser navigation payload, bounded before deserialization by BrowserHost.</summary>
-public sealed record BrowserNavigationRequest(string ExtensionId, string ProfileId, int ManagedSessionId, BrowserProvider Provider, string Host, string Path, BrowserContentType ContentType, string? ChannelId = null, string? ChannelHandle = null, string? TikTokCreator = null);
+public sealed record BrowserNavigationRequest(string ExtensionId, string ProfileId, int ManagedSessionId, BrowserProvider Provider, string Host, string Path, BrowserContentType ContentType, string? ChannelId = null, string? ChannelHandle = null, string? TikTokCreator = null, bool IsDiagnosticProbe = false);
 public sealed record BrowserNavigationResponse(bool Allowed, string Reason, string? DisplayLabel = null, string? Diagnostic = null);
 
 public static class BrowserNavigationValidator
