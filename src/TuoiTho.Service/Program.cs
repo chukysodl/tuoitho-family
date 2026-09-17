@@ -41,7 +41,6 @@ builder.Services.AddSingleton<IAppEnforcementProcessSource, WindowsAppEnforcemen
 builder.Services.AddSingleton<IAppEnforcementProcessController, WindowsAppEnforcementProcessController>();
 builder.Services.Configure<ParentControlOptions>(builder.Configuration.GetSection(ParentControlOptions.SectionName));
 builder.Services.Configure<M1BootstrapOptions>(builder.Configuration.GetSection(M1BootstrapOptions.SectionName));
-builder.Services.Configure<BrowserControlOptions>(builder.Configuration.GetSection(BrowserControlOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PolicyChangeSignal>();
 builder.Services.AddSingleton<ParentControlService>(services => new ParentControlService(services.GetRequiredService<IDeviceTimePolicyStore>(), services.GetRequiredService<ITimeUsageStore>(), services.GetRequiredService<IClock>(), services.GetRequiredService<DeviceTimePolicyEngine>(), services.GetRequiredService<PolicyChangeSignal>(), services.GetRequiredService<ActivitySampleCache>(), services.GetRequiredService<WindowsSessionEventSource>(), services.GetRequiredService<SessionTimeEngine>(), services.GetRequiredService<IAppPolicyStore>(), services.GetRequiredService<AppPolicyEngine>(), services.GetRequiredService<IManagedSessionAppDiscovery>(), services.GetRequiredService<AppEnforcementState>(), services.GetRequiredService<AppEnforcementAuditTrail>(), services.GetRequiredService<IWebPolicyStore>()));
