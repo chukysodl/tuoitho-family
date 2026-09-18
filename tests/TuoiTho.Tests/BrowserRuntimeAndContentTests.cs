@@ -75,10 +75,10 @@ public sealed class BrowserRuntimeAndContentTests
     public void M4CheckSeparatesRegistrationRuntimeAndPolicyProbe()
     {
         var script = File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "M4-BROWSER-CHECK.ps1"));
-        Assert.Contains("A. Native Host", script, StringComparison.Ordinal);
-        Assert.Contains("B. Extension runtime", script, StringComparison.Ordinal);
-        Assert.Contains("C. BrowserHost -> Service", script, StringComparison.Ordinal);
-        Assert.Contains("D. Đánh giá chính sách", script, StringComparison.Ordinal);
+        Assert.Contains("B. Native Host", script, StringComparison.Ordinal);
+        Assert.Contains("F. Extension runtime", script, StringComparison.Ordinal);
+        Assert.Contains("D. BrowserHost -> Service", script, StringComparison.Ordinal);
+        Assert.Contains("E. Đánh giá chính sách", script, StringComparison.Ordinal);
         Assert.Contains("--service-probe", script, StringComparison.Ordinal);
     }
 

@@ -1,48 +1,27 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$project = Join-Path $root 'src\TuoiTho.BrowserHost\TuoiTho.BrowserHost.csproj'
-& dotnet build $project --configuration Release
-if ($LASTEXITCODE -ne 0) { throw 'Không thể build TuoiTho.BrowserHost.' }
+. (Join-Path $PSScriptRoot 'M4-BROWSER-COMMON.ps1')
+$hostExe = Build-M4BrowserHost $root
+$paths = Get-M4Paths $root
+$stagedManifest = Join-Path $paths.Extension 'manifest.json'
 
-$hostExe = Join-Path $root 'src\TuoiTho.BrowserHost\bin\Release\net10.0-windows\TuoiTho.BrowserHost.exe'
-if (-not (Test-Path $hostExe)) { throw 'Không tìm thấy BrowserHost sau build.' }
+# Existing configuration is a trusted identity contract. A missing staged key is a repair case,
+# never a reason for a normal install/update to create a second Chromium extension ID.
+if ((Test-Path -LiteralPath $paths.Config) -and -not (Test-Path -LiteralPath $stagedManifest)) {
+    throw 'browser-control.json đã tồn tại nhưng staged key bị mất. Hãy chạy M4-BROWSER-REPAIR.cmd.'
+}
 
-# Keep the generated extension key out of the repository. Browsers load this staged folder.
-$extensionSource = Join-Path $root 'browser-extension'
-$extension = Join-Path $env:LOCALAPPDATA 'TuoiTho\M4\Extension'
-New-Item -ItemType Directory -Force $extension | Out-Null
-Copy-Item (Join-Path $extensionSource '*') $extension -Recurse -Force
-
-$configDir = Join-Path $env:ProgramData 'TuoiTho'
-New-Item -ItemType Directory -Force $configDir | Out-Null
-$config = Join-Path $configDir 'browser-control.json'
-$extensionId = (& $hostExe --bootstrap-config $extension $config | Select-Object -Last 1).Trim()
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($extensionId)) { throw 'Không thể tạo cấu hình M4.' }
-
-$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-& icacls $config /inheritance:r /grant:r "*${currentSid}:(R,W)" '*S-1-5-18:(F)' | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Không thể bảo vệ browser-control.json bằng Windows ACL.' }
-
-$nativeDir = Join-Path $env:LOCALAPPDATA 'TuoiTho\NativeMessaging'
-New-Item -ItemType Directory -Force $nativeDir | Out-Null
-$native = @{
-    name = 'com.tuoitho.browserhost'
-    description = 'TuoiTho local browser control'
-    path = $hostExe
-    type = 'stdio'
-    allowed_origins = @("chrome-extension://$extensionId/")
-} | ConvertTo-Json -Depth 3
-$chrome = Join-Path $nativeDir 'com.tuoitho.browserhost.chrome.json'
-$edge = Join-Path $nativeDir 'com.tuoitho.browserhost.edge.json'
-Set-Content $chrome $native -Encoding utf8
-Set-Content $edge $native -Encoding utf8
-reg add 'HKCU\Software\Google\Chrome\NativeMessagingHosts\com.tuoitho.browserhost' /ve /t REG_SZ /d $chrome /f | Out-Null
-reg add 'HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.tuoitho.browserhost' /ve /t REG_SZ /d $edge /f | Out-Null
+Copy-M4ExtensionPayload $hostExe $paths.Source $paths.Extension
+$extensionId = (& $hostExe --bootstrap-config $paths.Extension $paths.Config | Select-Object -Last 1).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($extensionId)) { throw 'Không thể tạo hoặc xác nhận cấu hình M4.' }
+Protect-M4BrowserConfig $paths.Config
+Register-M4NativeHosts $hostExe $extensionId $paths
 
 & (Join-Path $PSScriptRoot 'M4-BROWSER-CHECK.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'Kiểm tra đăng ký Native Messaging thất bại.' }
-Write-Host "`nPASS: M4 đã tự cấu hình BrowserHost, browser-control.json và Chrome/Edge Native Messaging."
+Write-Host "`nM4 INSTALL: PASS"
 Write-Host "Extension ID: $extensionId"
-Write-Host "Load unpacked: $extension"
+Write-Host "Load unpacked: $($paths.Extension)"
 Write-Host 'Chrome: chrome://extensions | Edge: edge://extensions | bật Developer mode → Load unpacked.'
 Write-Host 'Không cần SETX, sửa JSON, SID hoặc Session thủ công.'
+Write-Host 'Lần cập nhật sau dùng M4-BROWSER-UPDATE.cmd; không chép manifest nguồn trực tiếp vào thư mục staged.'

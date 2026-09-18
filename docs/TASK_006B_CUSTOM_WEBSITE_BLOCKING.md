@@ -14,3 +14,8 @@ TuoiTho rules apply only to `main_frame` and `sub_frame`, so a blocked domain is
 ## DNR redirect verification (006B1)
 
 `blocked.html` is the only extension resource declared web-accessible, solely so a dynamic DNR redirect can render the TuoiTho block page. In TestMode the extension reports memory-only diagnostics through the existing secured local pipe: `Custom rules in policy`, `DNR rules active`, `DNR_SYNC` and a bounded, URL-free `DNR_ERROR`. A failed `updateDynamicRules` call leaves the prior DNR snapshot in place and is not persisted as a bypass.
+## Stable M4 extension identity (006B2)
+
+The staged extension folder (`%LOCALAPPDATA%\TuoiTho\M4\Extension`) owns a Chromium public key and its derived extension ID. The repository manifest deliberately has **no** `key`; never copy that raw manifest over the staged folder. Use `M4-BROWSER-UPDATE.cmd` for code updates: it preserves the existing staged key, verifies the ID against `%ProgramData%\TuoiTho\browser-control.json`, and refreshes the single allowed Chrome/Edge Native Messaging origin.
+
+`M4-BROWSER-INSTALL.cmd` is idempotent: first install generates one identity; later runs retain it. If an old staged key has genuinely been lost, use `M4-BROWSER-REPAIR.cmd`. Repair creates one canonical replacement only when needed, preserves profile/session/SID/TestMode configuration and all SQLite policies, and asks the parent to remove old TuoiTho unpacked entries manually before loading only the staged folder. It never removes arbitrary browser extensions.

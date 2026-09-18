@@ -1,15 +1,29 @@
-using System.Diagnostics;
 using System.IO.Pipes;
-using System.Security.Cryptography;
-using System.Security.Principal;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using TuoiTho.Core.Policy;
 using TuoiTho.BrowserHost;
 
 if (args is ["--bootstrap-config", var extensionDirectory, var configurationPath])
 {
-    Console.WriteLine(BrowserDeploymentBootstrapper.Create(extensionDirectory, configurationPath));
+    Console.WriteLine(BrowserDeploymentBootstrapper.Create(extensionDirectory, configurationPath).ExtensionId);
+    return;
+}
+
+if (args is ["--repair-browser-config", var repairExtensionDirectory, var repairConfigurationPath])
+{
+    Console.WriteLine(BrowserDeploymentBootstrapper.Repair(repairExtensionDirectory, repairConfigurationPath).ExtensionId);
+    return;
+}
+
+if (args is ["--extension-id", var manifestPath])
+{
+    Console.WriteLine(BrowserDeploymentBootstrapper.GetExtensionId(manifestPath));
+    return;
+}
+
+if (args is ["--preserve-extension-key", var priorManifestPath, var stagedManifestPath])
+{
+    Console.WriteLine(BrowserDeploymentBootstrapper.PreserveKeyDuringUpdate(priorManifestPath, stagedManifestPath));
     return;
 }
 
@@ -30,6 +44,7 @@ if (args is ["--service-probe"])
     }
     return;
 }
+
 BrowserControlConfiguration config;
 try
 {
@@ -76,60 +91,6 @@ while (true)
     }
 
     await NativeMessaging.WriteAsync(Console.OpenStandardOutput(), response, CancellationToken.None);
-}
-
-internal static class BrowserDeploymentBootstrapper
-{
-    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
-    public static string Create(string extensionDirectory, string configurationPath)
-    {
-        var manifestPath = Path.Combine(extensionDirectory, "manifest.json");
-        if (!File.Exists(manifestPath))
-        {
-            throw new InvalidOperationException("The staged browser extension manifest is unavailable.");
-        }
-
-        using var rsa = RSA.Create(2048);
-        var publicKey = rsa.ExportSubjectPublicKeyInfo();
-        var extensionId = ToChromeExtensionId(SHA256.HashData(publicKey));
-        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))?.AsObject()
-            ?? throw new InvalidOperationException("The staged browser extension manifest is invalid.");
-        manifest["key"] = Convert.ToBase64String(publicKey);
-        File.WriteAllText(manifestPath, manifest.ToJsonString(IndentedJson));
-
-        var sid = WindowsIdentity.GetCurrent().User?.Value
-            ?? throw new InvalidOperationException("The current Windows user SID is unavailable.");
-        var configuration = new BrowserControlConfiguration(
-            extensionId,
-            "m1-child",
-            Process.GetCurrentProcess().SessionId,
-            sid,
-            TestMode: true);
-        configuration.Validate();
-
-        var directory = Path.GetDirectoryName(configurationPath);
-        if (string.IsNullOrWhiteSpace(directory))
-        {
-            throw new InvalidOperationException("The browser control configuration path is invalid.");
-        }
-
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(configurationPath, JsonSerializer.Serialize(configuration, IndentedJson));
-        File.WriteAllText(Path.Combine(extensionDirectory, "m4-runtime-config.js"), $"export const TEST_MODE = {configuration.TestMode.ToString().ToLowerInvariant()};{Environment.NewLine}");
-        return extensionId;
-    }
-
-    private static string ToChromeExtensionId(byte[] keyHash)
-    {
-        if (keyHash.Length < 16) throw new InvalidOperationException("The extension key hash is invalid.");
-        var characters = new char[32];
-        for (var index = 0; index < 16; index++)
-        {
-            characters[index * 2] = (char)('a' + (keyHash[index] >> 4));
-            characters[index * 2 + 1] = (char)('a' + (keyHash[index] & 0x0f));
-        }
-        return new string(characters);
-    }
 }
 
 internal static class BrowserPolicyPipeClient
