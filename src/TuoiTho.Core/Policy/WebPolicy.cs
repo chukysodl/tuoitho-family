@@ -192,7 +192,7 @@ public sealed class WebPolicyEngine
 }
 
 /// <summary>Untrusted browser request, bounded before deserialization by BrowserHost. Custom policy sync sends no visited URL.</summary>
-public sealed record BrowserNavigationRequest(string ExtensionId, string ProfileId, int ManagedSessionId, BrowserProvider Provider, string Host, string Path, BrowserContentType ContentType, string? ChannelId = null, string? ChannelHandle = null, string? TikTokCreator = null, bool IsDiagnosticProbe = false, string? OwnerState = null, string? ShortContainer = null, int? OwnerCandidateCount = null, string? OwnerSource = null, bool IsPolicySync = false);
+public sealed record BrowserNavigationRequest(string ExtensionId, string ProfileId, int ManagedSessionId, BrowserProvider Provider, string Host, string Path, BrowserContentType ContentType, string? ChannelId = null, string? ChannelHandle = null, string? TikTokCreator = null, bool IsDiagnosticProbe = false, string? OwnerState = null, string? ShortContainer = null, int? OwnerCandidateCount = null, string? OwnerSource = null, bool IsPolicySync = false, string? DnrSyncState = null, int? DnrRuleCount = null, int? CustomRuleCount = null, string? DnrError = null);
 public sealed record BrowserNavigationResponse(bool Allowed, string Reason, string? DisplayLabel = null, string? Diagnostic = null, long? PolicyRevision = null, IReadOnlyList<WebRule>? CustomRules = null);
 
 public static class BrowserNavigationValidator
@@ -202,6 +202,11 @@ public static class BrowserNavigationValidator
     {
         if (request is null || string.IsNullOrWhiteSpace(expectedExtensionId) || !string.Equals(request.ExtensionId, expectedExtensionId, StringComparison.Ordinal) || request.ProfileId.Length is < 1 or > 128 || request.ManagedSessionId < 0) return false;
         if (request.IsPolicySync) return request.Provider == BrowserProvider.GenericWeb && string.IsNullOrEmpty(request.Host) && string.IsNullOrEmpty(request.Path) && request.ContentType == BrowserContentType.Unknown && request.ChannelId is null && request.ChannelHandle is null && request.TikTokCreator is null;
+        if (request.DnrSyncState is not null || request.DnrRuleCount is not null || request.CustomRuleCount is not null || request.DnrError is not null)
+        {
+            return request.IsDiagnosticProbe && request.Provider == BrowserProvider.GenericWeb && string.IsNullOrEmpty(request.Host) && string.IsNullOrEmpty(request.Path) && request.ContentType == BrowserContentType.Unknown && request.DnrSyncState is ("PASS" or "FAIL") && request.DnrRuleCount is >= 0 and <= 5000 && request.CustomRuleCount is >= 0 and <= 5000 && (request.DnrError is null || (request.DnrError.Length <= 160 && !request.DnrError.Contains("://", StringComparison.Ordinal) && !request.DnrError.Contains('?')));
+        }
+
         if (request.Host.Length is < 1 or > 255 || request.Path.Length > 2048) return false;
         if (request.OwnerState is not null && request.OwnerState is not ("SHORT_OWNER_FOUND" or "SHORT_OWNER_UNKNOWN")) return false;
         if (request.OwnerState is not null && request.ContentType != BrowserContentType.ShortForm) return false;

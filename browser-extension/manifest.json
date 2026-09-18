@@ -6,6 +6,9 @@
   "permissions": ["nativeMessaging", "declarativeNetRequest", "storage", "webNavigation"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "service-worker.js", "type": "module" },
+  "web_accessible_resources": [
+    { "resources": ["blocked.html"], "matches": ["<all_urls>"] }
+  ],
   "content_scripts": [
     { "matches": ["*://*.youtube.com/*", "*://youtu.be/*"], "js": ["content/youtube.js"], "run_at": "document_idle" },
     { "matches": ["*://*.tiktok.com/*"], "js": ["content/tiktok.js"], "run_at": "document_idle" }

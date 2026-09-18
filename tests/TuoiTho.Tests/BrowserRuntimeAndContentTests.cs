@@ -16,6 +16,10 @@ public sealed class BrowserRuntimeAndContentTests
         var status = cache.Snapshot();
         Assert.True(status.ExtensionConnected);
         Assert.Equal("CHẶN", status.LastResult);
+        cache.RecordDnrSync(1, 1, "PASS", null);
+        Assert.Equal(1, cache.Snapshot().CustomPolicyRuleCount);
+        Assert.Equal(1, cache.Snapshot().ActiveDnrRuleCount);
+        Assert.Equal("PASS", cache.Snapshot().DnrSyncState);
         Assert.DoesNotContain(typeof(ParentBrowserRuntimeStatus).GetProperties(), property => property.Name.Contains("Url", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Path", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("History", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -34,6 +38,15 @@ public sealed class BrowserRuntimeAndContentTests
         Assert.Null(cache.Snapshot().ShortOwnerState);
         Assert.DoesNotContain(typeof(ParentBrowserRuntimeStatus).GetProperties(), property => property.Name.Contains("Url", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("Path", StringComparison.OrdinalIgnoreCase) || property.Name.Contains("History", StringComparison.OrdinalIgnoreCase));
     }
+    [Fact]
+    public void DnrRedirectTargetIsExplicitlyWebAccessibleAndNoOtherFileIsExposed()
+    {
+        var manifest = File.ReadAllText(Path.Combine(RepositoryRoot(), "browser-extension", "manifest.json"));
+        Assert.Contains("\"web_accessible_resources\"", manifest, StringComparison.Ordinal);
+        Assert.Contains("\"resources\": [\"blocked.html\"]", manifest, StringComparison.Ordinal);
+        Assert.DoesNotContain("service-worker.js\"]", manifest, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void YouTubeContentScriptUsesScopedOwnersAndSafeOverlay()
     {

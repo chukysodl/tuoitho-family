@@ -38,7 +38,7 @@ public sealed class WebPolicyPanel : UserControl
         rules = status?.Rules ?? []; grid.Rows.Clear();
         foreach (var rule in rules) grid.Rows.Add(rule.DisplayLabel, ScopeText(rule.Scope), rule.Decision == WebRuleDecision.Allow ? "CHO PHÉP" : "CHẶN");
         var health = status?.RuntimeStatus;
-        runtime.Text = health is null ? "Trình duyệt: CHƯA KẾT NỐI" : $"Trình duyệt: {(health.ExtensionConnected ? "KẾT NỐI" : "CHƯA KẾT NỐI")}    BrowserPolicy: {health.BrowserPolicyState}    Revision: {status?.PolicyRevision ?? 0}    Lần kiểm tra: {(health.LastCheckedAtUtc?.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) ?? "—")}";
+        runtime.Text = health is null ? "Trình duyệt: CHƯA KẾT NỐI" : $"Trình duyệt: {(health.ExtensionConnected ? "KẾT NỐI" : "CHƯA KẾT NỐI")}    BrowserPolicy: {health.BrowserPolicyState}    Revision: {status?.PolicyRevision ?? 0}    Custom rules in policy: {health.CustomPolicyRuleCount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—"}    DNR rules active: {health.ActiveDnrRuleCount?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "—"}    DNR_SYNC: {health.DnrSyncState ?? "—"}{(health.DnrError is null ? "" : "    DNR_ERROR: " + health.DnrError)}";
     }
 
     private static string ScopeText(WebRuleScope scope) => scope switch { WebRuleScope.Domain => "Toàn website", WebRuleScope.PathPrefix => "Đường dẫn", WebRuleScope.YouTubeChannel => "Kênh YouTube", WebRuleScope.TikTokCreator => "Tài khoản TikTok", _ => "Toàn nền tảng" };

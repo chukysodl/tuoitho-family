@@ -108,6 +108,15 @@ public sealed class WebPolicyTests
     }
 
     [Fact]
+    public void DnrRuntimeDiagnosticIsBoundedAndCannotContainUrlData()
+    {
+        var request = new BrowserNavigationRequest("extension", "child", 7, BrowserProvider.GenericWeb, string.Empty, string.Empty, BrowserContentType.Unknown, IsDiagnosticProbe: true, DnrSyncState: "FAIL", DnrRuleCount: 1, CustomRuleCount: 1, DnrError: "RULE_LIMIT");
+        Assert.True(BrowserNavigationValidator.IsValid(request, "extension"));
+        Assert.False(BrowserNavigationValidator.IsValid(request with { DnrError = "https://example.com/private" }, "extension"));
+        Assert.False(BrowserNavigationValidator.IsValid(request with { DnrRuleCount = 5001 }, "extension"));
+    }
+
+    [Fact]
     public void BrowserRequestRejectsWrongExtensionOversizeIdentityAndCannotCarryCommands()
     {
         var request = new BrowserNavigationRequest("wrong", "child", 7, BrowserProvider.YouTube, "youtube.com", "/watch", BrowserContentType.Video);

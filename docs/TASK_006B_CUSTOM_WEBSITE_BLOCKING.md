@@ -11,3 +11,6 @@ A parent may create `DOMAIN` or `PATH_PREFIX` rules with `BLOCK` or `ALLOW`. Hos
 Only parent-authored rules are persisted. Normal arbitrary navigation never sends a URL to the Service: browser startup/top-level navigation asks only for the policy revision/snapshot, then DNR evaluates locally. The extension has no arbitrary-site content script and does not collect page content, browsing/watch/search history, cookies, passwords, keystrokes, screenshots, documents, or query strings.
 
 TuoiTho rules apply only to `main_frame` and `sub_frame`, so a blocked domain is not used to block unrelated third-party assets. Existing block DNR rules remain while BrowserHost/Service is unavailable. Internal browser and extension URLs are rejected from parent input. Browser dynamic rules not owned by TuoiTho are never removed or modified.
+## DNR redirect verification (006B1)
+
+`blocked.html` is the only extension resource declared web-accessible, solely so a dynamic DNR redirect can render the TuoiTho block page. In TestMode the extension reports memory-only diagnostics through the existing secured local pipe: `Custom rules in policy`, `DNR rules active`, `DNR_SYNC` and a bounded, URL-free `DNR_ERROR`. A failed `updateDynamicRules` call leaves the prior DNR snapshot in place and is not persisted as a bypass.
