@@ -1,13 +1,13 @@
-# Shared helpers for M4 browser deployment. Never copy browser-extension\manifest.json directly
+﻿# Shared helpers for M4 browser deployment. Never copy browser-extension\manifest.json directly
 # into the staged folder: use Copy-M4ExtensionPayload so the staged Chromium identity key survives.
 function Build-M4BrowserHost {
     param([string]$RepositoryRoot)
     $project = Join-Path $RepositoryRoot 'src\TuoiTho.BrowserHost\TuoiTho.BrowserHost.csproj'
-    & dotnet build $project --configuration Release
+    & dotnet build $project --configuration Release | Out-Host
     if ($LASTEXITCODE -ne 0) { throw 'Không thể build TuoiTho.BrowserHost.' }
-    $host = Join-Path $RepositoryRoot 'src\TuoiTho.BrowserHost\bin\Release\net10.0-windows\TuoiTho.BrowserHost.exe'
-    if (-not (Test-Path -LiteralPath $host)) { throw 'Không tìm thấy BrowserHost sau build.' }
-    return $host
+    $browserHostPath = Join-Path $RepositoryRoot 'src\TuoiTho.BrowserHost\bin\Release\net10.0-windows\TuoiTho.BrowserHost.exe'
+    if (-not (Test-Path -LiteralPath $browserHostPath)) { throw 'Không tìm thấy BrowserHost sau build.' }
+    return $browserHostPath
 }
 
 function Get-M4Paths {

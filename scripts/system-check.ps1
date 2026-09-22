@@ -26,6 +26,9 @@ foreach ($path in $requiredPaths) {
     }
 }
 
+& (Join-Path $PSScriptRoot 'test-m4-powershell51-parser.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'System Check PowerShell 5.1 parser test failed.' }
+
 $sdkVersion = dotnet --version
 if ($LASTEXITCODE -ne 0 -or $sdkVersion -notmatch '^10\.') {
     throw ".NET 10 SDK is required; found '$sdkVersion'."

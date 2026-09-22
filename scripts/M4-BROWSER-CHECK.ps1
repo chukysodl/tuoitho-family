@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $config = Join-Path $env:ProgramData 'TuoiTho\browser-control.json'
 if (-not (Test-Path -LiteralPath $config)) { throw 'FAIL: thiếu browser-control.json. Hãy chạy M4-BROWSER-INSTALL.cmd.' }
 $value = Get-Content -LiteralPath $config -Raw | ConvertFrom-Json
@@ -9,7 +9,7 @@ $extension = Join-Path $env:LOCALAPPDATA 'TuoiTho\M4\Extension'
 $stagedManifest = Join-Path $extension 'manifest.json'
 $nativeOk = $true
 $identityOk = $false
-if (Test-Path -LiteralPath $hostExe -and Test-Path -LiteralPath $stagedManifest) {
+if ((Test-Path -LiteralPath $hostExe) -and (Test-Path -LiteralPath $stagedManifest)) {
     $stagedId = (& $hostExe --extension-id $stagedManifest | Select-Object -Last 1).Trim()
     if ($LASTEXITCODE -eq 0 -and $stagedId -eq $value.ExtensionId) { $identityOk = $true; Write-Host "A. Staged Extension ID: PASS ($stagedId)" }
     else { $nativeOk = $false; Write-Host "A. Staged Extension ID: FAIL — staged=$stagedId config=$($value.ExtensionId)" }
