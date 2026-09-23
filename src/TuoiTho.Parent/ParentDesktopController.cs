@@ -34,6 +34,8 @@ public sealed class ParentDesktopController(IParentControlClient client, string 
 
     public Task<ParentUiResult> SaveTimePolicyAsync(int dailyQuotaMinutes, IReadOnlyList<AllowedUsageWindow> windows, CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(ParentControlAction.SaveTimePolicy, profileId, sessionId, DailyQuotaMinutes: dailyQuotaMinutes, Windows: windows), token);
+    public Task<ParentUiResult> SendWebRuleAsync(ParentControlAction action, WebRule rule, CancellationToken token = default) =>
+        ExecuteAsync(new ParentControlCommand(action, profileId, sessionId, WebRule: rule), token);
 
     private async Task<ParentUiResult> ExecuteAsync(ParentControlCommand command, CancellationToken token)
     {

@@ -1,0 +1,2 @@
+Get-Process TuoiTho.BrowserHost -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+Write-Host 'Đã dừng BrowserHost M4 (nếu đang chạy). Không thay đổi chính sách trình duyệt hoặc Windows.'

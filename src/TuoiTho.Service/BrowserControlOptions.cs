@@ -1,0 +1,2 @@
+namespace TuoiTho.Service;
+public sealed class BrowserControlOptions { public const string SectionName="BrowserControl"; public string PipeName{get;init;}="TuoiTho.BrowserPolicy"; public string ManagedUserSid{get;init;}=""; public string AllowedExtensionId{get;init;}=""; }

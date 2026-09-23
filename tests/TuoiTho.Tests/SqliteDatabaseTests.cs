@@ -24,6 +24,8 @@ public sealed class SqliteDatabaseTests
                 Assert.Equal(1, await CountTablesAsync(connection, "device_config"));
                 Assert.Equal(1, await CountTablesAsync(connection, "time_usage_daily"));
                 Assert.Equal(1, await CountTablesAsync(connection, "time_tracking_checkpoints"));
+                Assert.Equal(1, await CountTablesAsync(connection, "browser_content_rules"));
+                Assert.Equal(1, await CountTablesAsync(connection, "browser_policy_revisions"));
                 await using var command = connection.CreateCommand();
                 command.CommandText = "PRAGMA table_info(observed_apps);";
                 await using var columns = await command.ExecuteReaderAsync();
@@ -32,7 +34,7 @@ public sealed class SqliteDatabaseTests
                 Assert.True(classificationFound);
             }
 
-            Assert.Equal(5, SqliteDatabase.CurrentSchemaVersion);
+            Assert.Equal(8, SqliteDatabase.CurrentSchemaVersion);
         }
         finally
         {

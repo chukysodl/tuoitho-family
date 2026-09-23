@@ -32,6 +32,8 @@ builder.Services.AddSingleton<SqliteDatabase>(_ => new SqliteDatabase(GetDatabas
 builder.Services.AddSingleton<ITimeUsageStore, SqliteTimeUsageStore>();
 builder.Services.AddSingleton<IDeviceTimePolicyStore, SqliteDeviceTimePolicyStore>();
 builder.Services.AddSingleton<IAppPolicyStore, SqliteAppPolicyStore>();
+builder.Services.AddSingleton<IWebPolicyStore, SqliteWebPolicyStore>();
+builder.Services.AddSingleton<BrowserRuntimeStatusCache>();
 builder.Services.AddSingleton<AppPolicyEngine>();
 builder.Services.AddSingleton<IManagedSessionAppDiscovery, WindowsManagedSessionAppDiscovery>();
 builder.Services.AddSingleton<AppEnforcementState>();
@@ -42,7 +44,7 @@ builder.Services.Configure<ParentControlOptions>(builder.Configuration.GetSectio
 builder.Services.Configure<M1BootstrapOptions>(builder.Configuration.GetSection(M1BootstrapOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PolicyChangeSignal>();
-builder.Services.AddSingleton<ParentControlService>(services => new ParentControlService(services.GetRequiredService<IDeviceTimePolicyStore>(), services.GetRequiredService<ITimeUsageStore>(), services.GetRequiredService<IClock>(), services.GetRequiredService<DeviceTimePolicyEngine>(), services.GetRequiredService<PolicyChangeSignal>(), services.GetRequiredService<ActivitySampleCache>(), services.GetRequiredService<WindowsSessionEventSource>(), services.GetRequiredService<SessionTimeEngine>(), services.GetRequiredService<IAppPolicyStore>(), services.GetRequiredService<AppPolicyEngine>(), services.GetRequiredService<IManagedSessionAppDiscovery>(), services.GetRequiredService<AppEnforcementState>(), services.GetRequiredService<AppEnforcementAuditTrail>()));
+builder.Services.AddSingleton<ParentControlService>(services => new ParentControlService(services.GetRequiredService<IDeviceTimePolicyStore>(), services.GetRequiredService<ITimeUsageStore>(), services.GetRequiredService<IClock>(), services.GetRequiredService<DeviceTimePolicyEngine>(), services.GetRequiredService<PolicyChangeSignal>(), services.GetRequiredService<ActivitySampleCache>(), services.GetRequiredService<WindowsSessionEventSource>(), services.GetRequiredService<SessionTimeEngine>(), services.GetRequiredService<IAppPolicyStore>(), services.GetRequiredService<AppPolicyEngine>(), services.GetRequiredService<IManagedSessionAppDiscovery>(), services.GetRequiredService<AppEnforcementState>(), services.GetRequiredService<AppEnforcementAuditTrail>(), services.GetRequiredService<IWebPolicyStore>(), services.GetRequiredService<BrowserRuntimeStatusCache>()));
 builder.Services.AddSingleton<DeviceTimePolicyEngine>();
 builder.Services.AddSingleton<LocalSessionWarningPublisher>();
 builder.Services.AddSingleton<IPolicyWarningPublisher, LocalPolicyWarningPublisher>();
@@ -71,6 +73,7 @@ builder.Services.AddHostedService<ParentControlListener>();
 builder.Services.AddHostedService<ActivitySampleListener>();
 builder.Services.AddHostedService<AppDiscoveryService>();
 builder.Services.AddHostedService<AppEnforcementService>();
+builder.Services.AddHostedService<BrowserPolicyListener>();
 
 using var host = builder.Build();
 host.Run();

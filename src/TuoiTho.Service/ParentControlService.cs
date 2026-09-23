@@ -20,17 +20,20 @@ public sealed class ParentControlService : IDisposable
     private readonly AppEnforcementState? appEnforcement;
     private readonly AppEnforcementAuditTrail? appEnforcementAudit;
     private ParentAppDiscoveryDiagnostics? lastAppDiscovery;
+    private readonly IWebPolicyStore? webPolicies;
+    private readonly BrowserRuntimeStatusCache? browserRuntime;
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
     public ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes,
         ActivitySampleCache? activityCache = null, WindowsSessionEventSource? sessionEventSource = null, SessionTimeEngine? timeEngine = null,
         IAppPolicyStore? appPolicies = null, AppPolicyEngine? appPolicyEngine = null, IManagedSessionAppDiscovery? appDiscovery = null,
-        AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null)
+        AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null, IWebPolicyStore? webPolicies = null,
+        BrowserRuntimeStatusCache? browserRuntime = null)
     {
         this.store = store; this.usage = usage; this.clock = clock; this.engine = engine; this.changes = changes;
         this.activityCache = activityCache; this.sessionEventSource = sessionEventSource; this.timeEngine = timeEngine;
         this.appPolicies = appPolicies; this.appPolicyEngine = appPolicyEngine; this.appDiscovery = appDiscovery;
-        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit;
+        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies; this.browserRuntime = browserRuntime;
     }
 
     public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes)
@@ -54,6 +57,8 @@ public sealed class ParentControlService : IDisposable
             var policy = await store.LoadAsync(command.ProfileId, token);
             if (policy is null || policy.ManagedSessionId != command.ManagedSessionId) return new(false, "PROFILE_OR_SESSION_MISMATCH");
             if (command.Action is ParentControlAction.GetStatus or ParentControlAction.GetApps) return new(true, null, policy, await StatusAsync(policy, token));
+            if (command.Action == ParentControlAction.GetWebRules) return new(true, null, policy, await StatusAsync(policy, token));
+            if (command.Action is ParentControlAction.SaveWebRule or ParentControlAction.RemoveWebRule) return await ExecuteWebAsync(command, policy, token);
             if (command.Action == ParentControlAction.RefreshApps) return await RefreshAppsAsync(policy, token);
             if (command.Action is ParentControlAction.EnableM2AppEnforcement or ParentControlAction.DisableM2AppEnforcement) return await SetExplicitBlockOnlyAsync(command.Action == ParentControlAction.EnableM2AppEnforcement, policy, token);
             if (command.Action is ParentControlAction.EnableM2AllowlistEnforcement or ParentControlAction.DisableM2AllowlistEnforcement) return await SetAllowlistAsync(command.Action == ParentControlAction.EnableM2AllowlistEnforcement, policy, token);
@@ -96,6 +101,23 @@ public sealed class ParentControlService : IDisposable
         finally { commandGate.Release(); }
     }
 
+    private async Task<ParentControlResult> ExecuteWebAsync(ParentControlCommand command, DeviceTimePolicy policy, CancellationToken token)
+    {
+        if (webPolicies is null || command.WebRule is null || command.WebRule.ProfileId != policy.ProfileId) return new(false, "INVALID_WEB_RULE");
+        var rule = command.WebRule;
+        if (rule.Provider == BrowserProvider.GenericWeb)
+        {
+            if (!WebIdentityNormalizer.TryNormalizeCustomWebsite(rule.DisplayLabel, rule.Scope, out var identity) || !string.Equals(identity.NormalizedKey, rule.NormalizedKey, StringComparison.Ordinal)) return new(false, "INVALID_WEB_RULE");
+            rule = rule with { DisplayLabel = identity.DisplayValue, NormalizedKey = identity.NormalizedKey };
+        }
+        else if (rule.Provider is not (BrowserProvider.YouTube or BrowserProvider.TikTok) || string.IsNullOrWhiteSpace(rule.NormalizedKey) || rule.Scope is WebRuleScope.Domain or WebRuleScope.PathPrefix)
+        {
+            return new(false, "INVALID_WEB_RULE");
+        }
+        if (command.Action == ParentControlAction.RemoveWebRule) await webPolicies.RemoveRuleAsync(policy.ProfileId, rule.Provider, rule.Scope, rule.NormalizedKey, token);
+        else await webPolicies.SaveRuleAsync(rule, token);
+        changes.Notify(); return new(true, null, policy, await StatusAsync(policy, token));
+    }
     private async Task<ParentControlResult> SetExplicitBlockOnlyAsync(bool enabled, DeviceTimePolicy policy, CancellationToken token)
     {
         if (!policy.TestMode || appEnforcement is null || appEnforcementAudit is null) return new(false, "APP_ENFORCEMENT_TESTMODE_REQUIRED", policy, await StatusAsync(policy, token));
@@ -226,7 +248,9 @@ public sealed class ParentControlService : IDisposable
                 return new ParentObservedApp(a.Identity, a.Classification, evaluation.Decision, evaluation.Reason, a.LastSeenUtc, explicitRule, AppEnforcementText(a.Classification, explicitRule, enforcement));
             }).ToArray(), lastAppDiscovery, enforcement, policy.TestMode);
         }
-        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, policy.Windows);
+        var snapshot = webPolicies is null ? null : await webPolicies.GetSnapshotAsync(policy.ProfileId, token);
+        var web = snapshot is null ? null : new ParentWebControlStatus(snapshot.Rules, browserRuntime?.Snapshot(), snapshot.Revision);
+        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, policy.Windows, web);
     }
 
     private void RecordEnforcement(DeviceTimePolicy policy, string decision, AppEnforcementAuditAction action)
