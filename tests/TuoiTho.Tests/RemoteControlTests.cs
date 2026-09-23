@@ -82,6 +82,37 @@ public sealed class RemoteControlTests
     }
 
     [Fact]
+    public async Task RemoteReadinessIsAvailableOnlyToAnAuthenticatedConfiguredParentAndContainsNoCredentials()
+    {
+        var cache = new RemoteControlRuntimeStatusCache();
+        cache.Configure(new RemoteControlOptions { Enabled = true, SupabaseUrl = "https://example.supabase.co", SupabaseAnonKey = "sb_publishable_public-test-key" });
+        cache.IdentityReady("b6f14f16-9278-4c0b-bff6-baf008cc12fe");
+        cache.CommandPollSucceeded(Now);
+        cache.StatusPublished(Now);
+        cache.PolicyObserved("child", 7, true);
+        var service = new ParentControlService(new RemoteMemoryPolicyStore(Policy()), new FakeTimeUsageStore(), new FakeClock(Now, TimeZoneInfo.Utc), new DeviceTimePolicyEngine(new FakeClock(Now, TimeZoneInfo.Utc)), new PolicyChangeSignal(), remoteRuntime: cache);
+        var command = new ParentControlCommand(ParentControlAction.GetRemoteDiagnostics, "", -1);
+        var denied = await service.ExecuteAsync(command, "S-1-5-21-child", new HashSet<string> { "S-1-5-21-parent" });
+        Assert.False(denied.Accepted);
+        var accepted = await service.ExecuteAsync(command, "S-1-5-21-parent", new HashSet<string> { "S-1-5-21-parent" });
+        Assert.True(accepted.Accepted);
+        Assert.True(accepted.RemoteDiagnostics!.ConfigurationValid);
+        Assert.True(accepted.RemoteDiagnostics.TestMode);
+        var json = JsonSerializer.Serialize(accepted);
+        Assert.DoesNotContain("sb_publishable_public-test-key", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("Bearer", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("service_role", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ParentPipeAcceptsNamedRemoteDiagnosticsActionForReadinessProbe()
+    {
+        var command = await ParentControlListener.ReadCommandAsync(new StringReader("{\"Action\":\"getRemoteDiagnostics\",\"ProfileId\":\"\",\"ManagedSessionId\":-1}"), CancellationToken.None);
+        Assert.NotNull(command);
+        Assert.Equal(ParentControlAction.GetRemoteDiagnostics, command!.Action);
+    }
+
+    [Fact]
     public async Task CommandIdAndNonceReplayAreDurablyRejectedAcrossReopen()
     {
         await WithDatabase(async db =>
@@ -194,7 +225,7 @@ public sealed class RemoteControlTests
             return new(HttpStatusCode.OK) { Content = new StringContent("{\"commands\":[]}") };
         });
         using var client = new HttpClient(handler);
-        using var transport = new SupabaseRemoteTransport(new RemoteControlOptions { Enabled = true, SupabaseUrl = "https://example.supabase.co", SupabaseAnonKey = "public-anon" }, client);
+        using var transport = new SupabaseRemoteTransport(new RemoteControlOptions { Enabled = true, SupabaseUrl = "https://example.supabase.co", SupabaseAnonKey = "sb_publishable_test-public-key" }, client);
         const string code = "ABCD-EFGH-JKLM-NPQR";
         await transport.RegisterPairingAsync(new(deviceId, "Family PC", RemotePairingCode.Sha256(code), RemotePairingCode.HashCredential("secret-token"), Now.AddMinutes(5)));
         var pairingBody = captured[0].Body;
@@ -206,6 +237,42 @@ public sealed class RemoteControlTests
         Assert.Equal(deviceId, captured[1].DeviceId);
         Assert.Equal("secret-token", captured[1].Credential);
         Assert.Equal("https://example.supabase.co/functions/v1/device-gateway", captured[1].Uri);
+    }
+
+    [Fact]
+    public void PublicKeyValidatorAcceptsOnlyPublishableOrLegacyAnonKeys()
+    {
+        Assert.True(SupabasePublicKeyValidator.IsValid("sb_publishable_test-public-key"));
+        Assert.True(SupabasePublicKeyValidator.IsValid(CreateJwtForRole("anon")));
+        Assert.False(SupabasePublicKeyValidator.IsValid(null));
+        Assert.False(SupabasePublicKeyValidator.IsValid("not-a-project-key-at-all"));
+        Assert.False(SupabasePublicKeyValidator.IsValid("sb_secret_test-secret-key-that-must-never-be-used"));
+        Assert.False(SupabasePublicKeyValidator.IsValid(CreateJwtForRole("service_role")));
+    }
+
+    [Fact]
+    public async Task SupabaseAdapterRejectsPrivilegedProjectKeysBeforeSendingAnything()
+    {
+        var sent = 0;
+        foreach (var key in new[] { "sb_secret_test-secret-key-that-must-never-be-used", CreateJwtForRole("service_role") })
+        {
+            using var client = new HttpClient(new DelegateHttpHandler(_ =>
+            {
+                sent++;
+                return new(HttpStatusCode.OK) { Content = new StringContent("{}") };
+            }));
+            using var transport = new SupabaseRemoteTransport(new RemoteControlOptions
+            {
+                Enabled = true,
+                SupabaseUrl = "https://example.supabase.co",
+                SupabaseAnonKey = key
+            }, client);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => transport.RegisterPairingAsync(
+                new("device-id", "Test PC", "pair-hash", "credential-hash", Now.AddMinutes(5))));
+        }
+
+        Assert.Equal(0, sent);
     }
 
     [Fact]
@@ -353,6 +420,12 @@ public sealed class RemoteControlTests
     }
 
     private static RemoteCommandEnvelope MakeCommand() => new(Guid.NewGuid().ToString(), "device-id", "0123456789abcdef", Now, Now, Now.AddMinutes(5), RemoteCommandKind.LockNow, JsonDocument.Parse("{}").RootElement.Clone());
+    private static string CreateJwtForRole(string role)
+    {
+        static string Base64Url(string value) => Convert.ToBase64String(Encoding.UTF8.GetBytes(value)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return $"{Base64Url("{\"alg\":\"none\"}")}.{Base64Url(JsonSerializer.Serialize(new { role }))}.signature";
+    }
+
     private static RemoteCommandEnvelope MakeCommand(string deviceId, RemoteCommandKind kind, string payload) => new(Guid.NewGuid().ToString(), deviceId, Guid.NewGuid().ToString("N"), Now, Now, Now.AddMinutes(5), kind, JsonDocument.Parse(payload).RootElement.Clone());
     private static DeviceTimePolicy Policy() => new("child", 7, 30, [new AllowedUsageWindow(Now.DayOfWeek, TimeOnly.MinValue, new TimeOnly(23, 59))], DeviceTimePolicy.DefaultWarnings, false, false, true);
 
@@ -361,6 +434,7 @@ public sealed class RemoteControlTests
         return new RemoteControlWorker(transport, state, remotePolicies, identity, parent, policies, apps, web, clock,
             Options.Create(new WindowsTimeTrackingOptions { ProfileId = "child", SessionId = 7 }),
             Options.Create(new RemoteControlOptions { Enabled = true, SupabaseUrl = "https://example.supabase.co", SupabaseAnonKey = "public", DeviceName = "Test PC", PollIntervalSeconds = 5, StatusIntervalSeconds = 15 }),
+            new RemoteControlRuntimeStatusCache(),
             NullLogger<RemoteControlWorker>.Instance);
     }
 

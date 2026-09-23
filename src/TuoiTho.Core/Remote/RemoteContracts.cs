@@ -55,6 +55,19 @@ public sealed record RemotePairingRegistration(
 
 public sealed record RemoteDeviceCredential(string DeviceId, string BearerToken);
 
+/// <summary>Secret-free, local-only status used by the Parent preflight. Never includes a URL or credential.</summary>
+public sealed record RemoteControlRuntimeDiagnostics(
+    bool Enabled,
+    bool ConfigurationValid,
+    bool DeviceIdentityReady,
+    string? DeviceId,
+    DateTimeOffset? LastCommandPollAtUtc,
+    DateTimeOffset? LastStatusPublishedAtUtc,
+    string? LastErrorCode,
+    string? ProfileId,
+    int? ManagedSessionId,
+    bool? TestMode);
+
 public sealed record RemotePolicySnapshot(
     string DeviceId,
     string ProfileId,

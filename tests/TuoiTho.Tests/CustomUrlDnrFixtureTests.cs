@@ -15,10 +15,5 @@ public sealed class CustomUrlDnrFixtureTests
         var output = await process.StandardOutput.ReadToEndAsync(); var error = await process.StandardError.ReadToEndAsync();
         Assert.True(process.ExitCode == 0, $"DNR fixtures failed.{Environment.NewLine}{output}{Environment.NewLine}{error}");
     }
-    private static string RepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "TuoiTho.sln"))) return directory.FullName;
-        throw new DirectoryNotFoundException("TuoiTho.sln was not found.");
-    }
+    private static string RepositoryRoot() => TestRepositoryRoot.Get();
 }

@@ -26,4 +26,11 @@
     <ProjectReference Include="..\..\src\TuoiTho.SessionAgent\TuoiTho.SessionAgent.csproj" />
     <ProjectReference Include="..\..\src\TuoiTho.Parent\TuoiTho.Parent.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\M5-REMOTE-SETUP.ps1" Link="M5-REMOTE-SETUP.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\M5-REMOTE-CHECK.ps1" Link="M5-REMOTE-CHECK.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\M5-TEST-GUIDE.txt" Link="M5-TEST-GUIDE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\infra\supabase\functions\device-gateway\index.ts" Link="infra\supabase\functions\device-gateway\index.ts" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

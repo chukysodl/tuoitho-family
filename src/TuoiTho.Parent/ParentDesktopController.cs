@@ -11,6 +11,7 @@ public sealed class ParentDesktopController(IParentControlClient client, string 
     private const string ServiceUnavailableMessage = "Không thể kết nối dịch vụ Tuổi Thơ. Vui lòng thử lại.";
     private readonly SemaphoreSlim requestGate = new(1, 1);
     private int autoRefreshPending;
+    public event Action<ParentControlStatus>? StatusUpdated;
 
     public Task<ParentUiResult> RefreshAsync(CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(ParentControlAction.GetStatus, profileId, sessionId), token);
@@ -48,9 +49,11 @@ public sealed class ParentDesktopController(IParentControlClient client, string 
             await requestGate.WaitAsync(token);
             entered = true;
             var result = await client.SendAsync(command, token);
-            return result.Accepted
+            var uiResult = result.Accepted
                 ? new ParentUiResult(true, result.Message ?? "THÀNH CÔNG", result.Status)
                 : new ParentUiResult(false, $"TỪ CHỐI: {result.Message ?? FriendlyError(result.Error)}", result.Status);
+            if (result.Status is not null) StatusUpdated?.Invoke(result.Status);
+            return uiResult;
         }
         catch (Exception exception) when (exception is TimeoutException or IOException or UnauthorizedAccessException or OperationCanceledException or JsonException)
         {

@@ -44,7 +44,7 @@ public sealed class SupabaseRemoteTransport : IRemoteTransport, IDisposable
 
     private async Task<TResponse> PostAsync<TRequest, TResponse>(string functionName, TRequest body, RemoteDeviceCredential? credential, CancellationToken token)
     {
-        if (!options.Enabled || !Uri.TryCreate(options.SupabaseUrl, UriKind.Absolute, out var baseUri) || baseUri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(baseUri.UserInfo) || !string.IsNullOrEmpty(baseUri.Query) || !string.IsNullOrEmpty(baseUri.Fragment) || string.IsNullOrWhiteSpace(options.SupabaseAnonKey))
+        if (!options.Enabled || !Uri.TryCreate(options.SupabaseUrl, UriKind.Absolute, out var baseUri) || baseUri.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(baseUri.UserInfo) || !string.IsNullOrEmpty(baseUri.Query) || !string.IsNullOrEmpty(baseUri.Fragment) || !SupabasePublicKeyValidator.IsValid(options.SupabaseAnonKey))
             throw new InvalidOperationException("Remote control is not configured with a valid HTTPS Supabase endpoint and public project key.");
         var uri = new Uri(baseUri, $"/functions/v1/{Uri.EscapeDataString(functionName)}");
         using var request = new HttpRequestMessage(HttpMethod.Post, uri);

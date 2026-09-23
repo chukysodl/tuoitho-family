@@ -2,7 +2,7 @@ namespace TuoiTho.Tests;
 
 public sealed class M1LifecycleScriptTests
 {
-    private static string Script(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "scripts", name));
+    private static string Script(string name) => File.ReadAllText(Path.Combine(TestRepositoryRoot.Get(), "scripts", name));
 
     [Fact]
     public void StartReplacesOnlyTrackedM1ComponentsAndWaitsForCurrentParentProtocol()

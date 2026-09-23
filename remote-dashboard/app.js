@@ -12,9 +12,19 @@ function notify(text) {
   const el = $("toast"); el.textContent = text; el.classList.add("show");
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
 }
+function isPublicProjectKey(value) {
+  if (typeof value !== "string" || value.length < 20 || value.length > 512 || /service_role|sb_secret_/i.test(value)) return false;
+  if (value.startsWith("sb_publishable_")) return true;
+  const parts = value.split(".");
+  if (parts.length !== 3) return false;
+  try {
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(payload + "=".repeat((4 - payload.length % 4) % 4))).role === "anon";
+  } catch { return false; }
+}
 function readConfig() {
   try { config = JSON.parse(localStorage.getItem(configKey) || "null"); } catch { config = null; }
-  if (config?.url && config?.anonKey) config.url = config.url.replace(/\/$/, ""); else config = null;
+  if (config?.url && isPublicProjectKey(config.anonKey)) config.url = config.url.replace(/\/$/, ""); else config = null;
 }
 function showSections() {
   $("setup").classList.toggle("hidden", !!config);
@@ -64,7 +74,10 @@ function makeDeviceCard(device) {
   const name = document.createElement("h2"); name.textContent = device.device_name || "Thiết bị";
   const pill = document.createElement("span"); pill.className = `pill ${online ? "online" : "offline"}`; pill.textContent = online ? "● ONLINE" : "● OFFLINE";
   title.append(name, pill); card.append(title);
-  if (status.testMode) { const badge = document.createElement("span"); badge.className = "pill test"; badge.textContent = "TESTMODE — KHÓA THẬT ĐANG TẮT"; badge.style.display = "inline-block"; badge.style.marginTop = "10px"; card.append(badge); }
+  const badge = document.createElement("span"); badge.className = `pill ${status.testMode ? "test" : "real"}`;
+  badge.textContent = status.testMode ? "CHẾ ĐỘ THỬ NGHIỆM – KHÔNG KHÓA WINDOWS THẬT" : "CHẾ ĐỘ THỰC – LỆNH KHÓA CÓ THỂ TÁC ĐỘNG THẬT";
+  badge.style.background = status.testMode ? "#fff4d6" : "#ffe5e5"; badge.style.color = status.testMode ? "#795b0b" : "#9a2020";
+  badge.style.display = "inline-block"; badge.style.marginTop = "10px"; card.append(badge);
   const metrics = document.createElement("div"); metrics.className = "metrics";
   metric(metrics, "Đã dùng hôm nay", formatTime(status.usedSecondsToday));
   metric(metrics, "Còn lại", formatTime(status.remainingSeconds));
@@ -129,7 +142,7 @@ $("save-config").addEventListener("click", () => {
   const url = $("project-url").value.trim().replace(/\/$/, ""); const anonKey = $("anon-key").value.trim();
   let parsed;
   try { parsed = new URL(url); } catch { return notify("Nhập project URL HTTPS và public anon key hợp lệ."); }
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash || !anonKey) return notify("Nhập project URL HTTPS và public anon key hợp lệ.");
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash || !isPublicProjectKey(anonKey)) return notify("Chỉ nhập public anon/publishable key. Không nhập secret/service-role key.");
   localStorage.setItem(configKey, JSON.stringify({ url, anonKey })); readConfig(); showSections();
 });
 $("settings-toggle").addEventListener("click", () => { $("setup").classList.toggle("hidden"); $("auth").classList.add("hidden"); });

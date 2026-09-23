@@ -12,15 +12,28 @@ test('mobile dashboard exposes status and only the five authorized remote action
   for (const label of ['Đã dùng hôm nay', 'Còn lại', 'KHÓA NGAY', 'MỞ KHÓA', '+15 PHÚT', '+30 PHÚT', '+60 PHÚT']) assert.ok(js.includes(label), `missing ${label}`);
   for (const command of ['"lockNow"', '"unlock"', '"grantTime"', '"syncPolicy"']) assert.ok(js.includes(command), `missing command ${command}`);
   assert.match(html, /viewport/);
-  assert.match(js, /TESTMODE — KHÓA THẬT ĐANG TẮT/);
+  assert.match(js, /CHẾ ĐỘ THỬ NGHIỆM – KHÔNG KHÓA WINDOWS THẬT/);
+  assert.match(js, /CHẾ ĐỘ THỰC – LỆNH KHÓA CÓ THỂ TÁC ĐỘNG THẬT/);
 });
 
 test('remote frontend stores only public project settings persistently and keeps auth in session storage', () => {
   const js = read('remote-dashboard/app.js');
   assert.match(js, /localStorage\.setItem\(configKey/);
   assert.match(js, /sessionStorage\.setItem\(sessionKey/);
-  assert.doesNotMatch(js, /service.role|service_role/i);
   assert.doesNotMatch(js, /localStorage\.setItem\(sessionKey/);
+  assert.match(js, /localStorage\.setItem\(configKey, JSON\.stringify\(\{ url, anonKey \}\)\)/);
+  assert.match(js, /sb_publishable_/);
+  assert.match(js, /role === "anon"/);
+  assert.match(js, /service_role|sb_secret_/i);
+});
+
+test('mobile setup rejects privileged keys and gives email confirmation guidance', () => {
+  const html = read('remote-dashboard/index.html');
+  const js = read('remote-dashboard/app.js');
+  assert.match(html, /Không nhập secret\/service-role key/);
+  assert.match(html, /xác nhận email/);
+  assert.match(js, /role === "anon"/);
+  assert.match(js, /Chỉ nhập public anon\/publishable key/);
 });
 
 test('remote telemetry and UI contain no browsing, page, screenshot, or key logging fields', () => {
@@ -57,6 +70,9 @@ test('cloud functions enforce owner/device authentication and bounded command ac
   assert.ok(device.indexOf('if (!device) return json({ error: "DEVICE_AUTH_REJECTED" }, 401)') < device.indexOf('if (action === "poll_commands")'));
   assert.match(device, /1_048_576/);
   assert.match(device, /\.is\("acknowledgement", null\)/);
+  assert.match(device, /action === "health"/);
+  assert.match(device, /from\("remote_devices"\)\.select\("device_id"\)\.limit\(0\)/);
+  assert.match(device, /database: "ready"/);
 });
 
 test('Supabase gateway JWT settings match the two authentication boundaries', () => {

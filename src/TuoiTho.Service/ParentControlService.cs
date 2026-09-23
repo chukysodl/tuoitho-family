@@ -25,18 +25,19 @@ public sealed class ParentControlService : IDisposable
     private readonly BrowserRuntimeStatusCache? browserRuntime;
     private readonly RemoteDeviceIdentityManager? remoteIdentity;
     private readonly IRemotePolicyStore? remotePolicies;
+    private readonly RemoteControlRuntimeStatusCache? remoteRuntime;
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
     public ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes,
         ActivitySampleCache? activityCache = null, WindowsSessionEventSource? sessionEventSource = null, SessionTimeEngine? timeEngine = null,
         IAppPolicyStore? appPolicies = null, AppPolicyEngine? appPolicyEngine = null, IManagedSessionAppDiscovery? appDiscovery = null,
         AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null, IWebPolicyStore? webPolicies = null,
-        BrowserRuntimeStatusCache? browserRuntime = null, RemoteDeviceIdentityManager? remoteIdentity = null, IRemotePolicyStore? remotePolicies = null)
+        BrowserRuntimeStatusCache? browserRuntime = null, RemoteDeviceIdentityManager? remoteIdentity = null, IRemotePolicyStore? remotePolicies = null, RemoteControlRuntimeStatusCache? remoteRuntime = null)
     {
         this.store = store; this.usage = usage; this.clock = clock; this.engine = engine; this.changes = changes;
         this.activityCache = activityCache; this.sessionEventSource = sessionEventSource; this.timeEngine = timeEngine;
         this.appPolicies = appPolicies; this.appPolicyEngine = appPolicyEngine; this.appDiscovery = appDiscovery;
-        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies; this.browserRuntime = browserRuntime; this.remoteIdentity = remoteIdentity; this.remotePolicies = remotePolicies;
+        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies; this.browserRuntime = browserRuntime; this.remoteIdentity = remoteIdentity; this.remotePolicies = remotePolicies; this.remoteRuntime = remoteRuntime;
     }
 
     public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes)
@@ -56,6 +57,7 @@ public sealed class ParentControlService : IDisposable
         try
         {
             if (string.IsNullOrWhiteSpace(sid) || (!parents.Contains(sid) && !string.Equals(sid, "S-1-5-18", StringComparison.OrdinalIgnoreCase))) return new(false, "UNAUTHORIZED");
+            if (command.Action == ParentControlAction.GetRemoteDiagnostics) return new(true, null, RemoteDiagnostics: remoteRuntime?.Snapshot());
             if (string.IsNullOrWhiteSpace(command.ProfileId) || command.ManagedSessionId < 0) return new(false, "INVALID_COMMAND");
             var policy = await store.LoadAsync(command.ProfileId, token);
             if (policy is null || policy.ManagedSessionId != command.ManagedSessionId) return new(false, "PROFILE_OR_SESSION_MISMATCH");
@@ -266,7 +268,7 @@ public sealed class ParentControlService : IDisposable
         }
         var snapshot = webPolicies is null ? null : await webPolicies.GetSnapshotAsync(policy.ProfileId, token);
         var web = snapshot is null ? null : new ParentWebControlStatus(snapshot.Rules, browserRuntime?.Snapshot(), snapshot.Revision);
-        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, policy.Windows, web);
+        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, policy.Windows, web, remoteRuntime?.Snapshot());
     }
 
     /// <summary>In-process remote command bridge; remote requests still pass through this service's validated local policy actions.</summary>

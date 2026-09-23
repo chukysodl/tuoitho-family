@@ -102,12 +102,7 @@ public sealed class BrowserDeploymentBootstrapperTests
         Assert.Contains("$manifest.allowed_origins.Count -eq 1", check, StringComparison.Ordinal);
     }
 
-    private static string RepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "TuoiTho.sln"))) return directory.FullName;
-        throw new DirectoryNotFoundException("TuoiTho.sln was not found.");
-    }
+    private static string RepositoryRoot() => TestRepositoryRoot.Get();
 
     private sealed class DeploymentFixture : IDisposable
     {

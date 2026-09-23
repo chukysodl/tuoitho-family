@@ -1,4 +1,5 @@
 using TuoiTho.Core.Policy;
+using System.Globalization;
 
 namespace TuoiTho.Parent;
 
@@ -8,6 +9,10 @@ public sealed class RemotePairingPanel : UserControl
     private readonly Label result = new() { AutoSize = true, ForeColor = Color.DarkSlateGray, MaximumSize = new Size(760, 0) };
     private readonly Label code = new() { AutoSize = true, Font = new Font("Segoe UI", 24, FontStyle.Bold), ForeColor = Color.DarkBlue, Padding = new Padding(0, 12, 0, 12) };
     private readonly Label mode = new() { AutoSize = true, Font = new Font("Segoe UI", 12, FontStyle.Bold) };
+    private readonly Label expiry = new() { AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
+    private readonly Label runtime = new() { AutoSize = true, MaximumSize = new Size(760, 0) };
+    private readonly System.Windows.Forms.Timer expiryTimer = new() { Interval = 1000 };
+    private DateTimeOffset? expiresAt;
 
     public RemotePairingPanel(ParentDesktopController controller)
     {
@@ -27,10 +32,17 @@ public sealed class RemotePairingPanel : UserControl
         root.Controls.Add(code, 0, 3);
         var details = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false };
         details.Controls.Add(mode);
+        details.Controls.Add(new Label { Text = "M5 an toàn: cấu hình này không thay đổi TestMode hay chính sách cục bộ.", AutoSize = true, MaximumSize = new Size(760, 0) });
+        details.Controls.Add(expiry);
+        details.Controls.Add(runtime);
         details.Controls.Add(result);
-        details.Controls.Add(new Label { Text = "Mở trang Tuổi Thơ Remote trên điện thoại và nhập mã. Máy này vẫn tự áp dụng chính sách khi ngoại tuyến.", AutoSize = true, MaximumSize = new Size(760, 0), Padding = new Padding(0, 16, 0, 0) });
+        details.Controls.Add(new Label { Text = "Trên điện thoại, mở trang Tuổi Thơ Remote, đăng nhập tài khoản phụ huynh và nhập mã trước khi đồng hồ về 00:00. Máy này vẫn tự áp dụng chính sách khi ngoại tuyến.", AutoSize = true, MaximumSize = new Size(760, 0), Padding = new Padding(0, 16, 0, 0) });
         root.Controls.Add(details, 0, 4);
         Controls.Add(root);
+        expiryTimer.Tick += (_, _) => UpdateExpiry();
+        Disposed += (_, _) => expiryTimer.Dispose();
+        controller.StatusUpdated += UpdateStatus;
+        Disposed += (_, _) => controller.StatusUpdated -= UpdateStatus;
     }
 
     public event EventHandler? ManualActionStarting;
@@ -42,12 +54,49 @@ public sealed class RemotePairingPanel : UserControl
         try
         {
             code.Text = string.Empty;
+            expiry.Text = string.Empty;
+            expiresAt = null;
+            expiryTimer.Stop();
             var response = await controller.CreateRemotePairingAsync(token);
-            mode.Text = response.Status is null ? "" : response.Status.TestMode ? "CHẾ ĐỘ THỬ NGHIỆM — KHÓA THẬT ĐANG TẮT" : "CHẾ ĐỘ THỰC";
+            if (response.Status is not null) UpdateStatus(response.Status);
             result.Text = response.Message;
             result.ForeColor = response.Success ? Color.DarkGreen : Color.Firebrick;
-            if (response.Success && response.Message.Contains(':')) code.Text = response.Message[(response.Message.LastIndexOf(':') + 1)..].Trim();
+            if (response.Success && response.Message?.Contains(':') == true)
+            {
+                code.Text = response.Message[(response.Message.LastIndexOf(':') + 1)..].Trim();
+                result.Text = "Mã chỉ dùng một lần; ghép nối ngay trên điện thoại.";
+                expiresAt = DateTimeOffset.Now.AddMinutes(5);
+                expiryTimer.Start();
+                UpdateExpiry();
+            }
         }
         finally { ManualActionCompleted?.Invoke(this, EventArgs.Empty); }
+    }
+
+    public void UpdateStatus(ParentControlStatus status)
+    {
+        mode.Text = status.TestMode ? "CHẾ ĐỘ THỬ NGHIỆM – KHÔNG KHÓA WINDOWS THẬT" : "CHẾ ĐỘ THỰC – KHÓA CÓ THỂ TÁC ĐỘNG THẬT";
+        mode.ForeColor = status.TestMode ? Color.DarkGoldenrod : Color.Firebrick;
+        if (status.RemoteControl is not { } remote)
+        {
+            runtime.Text = "Tình trạng dịch vụ từ xa: chưa có dữ liệu kiểm tra.";
+            return;
+        }
+        runtime.Text = $"Remote: {(remote.Enabled ? "BẬT" : "TẮT")} · Thiết bị: {(remote.DeviceIdentityReady ? "SẴN SÀNG" : "CHƯA TẠO")} · Poll: {remote.LastCommandPollAtUtc?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture) ?? "chưa có"} · Gửi trạng thái: {remote.LastStatusPublishedAtUtc?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture) ?? "chưa có"} · {remote.LastErrorCode ?? "OK"}";
+    }
+
+    private void UpdateExpiry()
+    {
+        if (expiresAt is not { } end) return;
+        var left = end - DateTimeOffset.Now;
+        if (left <= TimeSpan.Zero)
+        {
+            expiry.Text = "MÃ ĐÃ HẾT HẠN — hãy tạo mã mới.";
+            code.Text = string.Empty;
+            expiresAt = null;
+            expiryTimer.Stop();
+            return;
+        }
+        expiry.Text = $"Còn hiệu lực: {Math.Max(0, (int)left.TotalMinutes):00}:{left.Seconds:00} · Chỉ dùng một lần.";
     }
 }

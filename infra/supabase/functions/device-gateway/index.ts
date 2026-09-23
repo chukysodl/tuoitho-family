@@ -38,10 +38,20 @@ Deno.serve(async (request) => {
   let input: Record<string, unknown>;
   try { input = JSON.parse(body.text); } catch { return json({ error: "MALFORMED_JSON" }, 400); }
 
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  const url = Deno.env.get("SUPABASE_URL") ?? "";
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const action = input.action;
+
+  // Public, side-effect-free deployment probe: reveals no project data or key and proves the table migration exists.
+  if (action === "health") {
+    if (!url || !key) return json({ ready: false, database: "unavailable" }, 503);
+    const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { error } = await db.from("remote_devices").select("device_id").limit(0);
+    return error ? json({ ready: false, database: "unavailable" }, 503) : json({ ready: true, database: "ready" });
+  }
+
+  if (!url || !key) return json({ error: "SERVICE_UNAVAILABLE" }, 503);
+  const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
   if (action === "register_pairing") {
     const p = input.pairing as Record<string, unknown> | undefined;

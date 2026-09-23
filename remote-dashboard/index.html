@@ -12,9 +12,9 @@
   <main>
     <section id="setup" class="card hidden">
       <h1>Kết nối dịch vụ</h1>
-      <p>Nhập URL dự án Supabase và public anon key. Không nhập service-role key hoặc mật khẩu cơ sở dữ liệu.</p>
+      <p>Nhập URL dự án và public anon/publishable key. Không nhập secret/service-role key hay mật khẩu cơ sở dữ liệu. Cấu hình chỉ lưu trên điện thoại này.</p>
       <label>Project URL<input id="project-url" type="url" placeholder="https://….supabase.co" autocomplete="url"></label>
-      <label>Public anon key<input id="anon-key" type="password" autocomplete="off"></label>
+      <label>Public anon/publishable key<input id="anon-key" type="password" autocomplete="off"></label>
       <button id="save-config" class="primary">Lưu cấu hình trên thiết bị này</button>
     </section>
 
@@ -24,6 +24,7 @@
       <label>Email<input id="email" type="email" autocomplete="username"></label>
       <label>Mật khẩu<input id="password" type="password" autocomplete="current-password"></label>
       <div class="row"><button id="sign-in" class="primary">Đăng nhập</button><button id="sign-up" class="secondary">Tạo tài khoản</button></div>
+      <p class="caption">Nếu Supabase yêu cầu xác nhận email, hãy mở thư xác nhận rồi quay lại đây để đăng nhập. Không dùng mật khẩu mặc định.</p>
     </section>
 
     <section id="dashboard" class="hidden">

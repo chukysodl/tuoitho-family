@@ -1,0 +1,19 @@
+M5 — ĐIỀU KHIỂN TỪ XA AN TOÀN
+
+Máy trẻ:
+1. Chạy M5-REMOTE-SETUP.cmd một lần; hoàn tất đăng nhập Supabase và nhập Project Ref/public anon hoặc publishable key khi được hỏi.
+2. Chạy M5-REMOTE-CHECK.cmd. Chỉ tiếp tục khi dòng cuối là M5 REMOTE CHECK: READY.
+3. Mở Tuổi Thơ → ĐIỀU KHIỂN TỪ XA → TẠO MÃ GHÉP NỐI. Mã dùng một lần, hết hạn sau 5 phút.
+
+Điện thoại phụ huynh (dùng 4G/5G, tắt Wi-Fi):
+1. Mở https://chukysodl.github.io/tuoitho-family/ . Nhập Project URL và public anon/publishable key; không nhập secret/service-role key.
+2. Đăng ký tài khoản phụ huynh bằng email/mật khẩu do phụ huynh tự chọn. Nếu cần xác nhận email, bấm link trong thư rồi quay lại đăng nhập; không tắt email confirmation.
+3. Nhập mã ghép nối. Thiết bị phải hiện ONLINE và đúng mức dùng/thời gian còn lại.
+
+Thử nghiệm:
+A. Bấm KHÓA NGAY: khi có nhãn CHẾ ĐỘ THỬ NGHIỆM, Windows thật không bị khóa.
+B. Bấm MỞ KHÓA, rồi +30 PHÚT; đợi xác nhận từ máy và xem thời gian còn lại tăng.
+C. Ngắt Internet máy trẻ: xác nhận quota, lịch, chặn ứng dụng và chặn website/YouTube/TikTok cục bộ vẫn hoạt động.
+D. Bật Internet lại: chờ thiết bị ONLINE và remote hoạt động trở lại; quota/chính sách cục bộ không bị đặt lại.
+
+Không chuyển TestMode sang chế độ thực trong lần nghiệm thu này.

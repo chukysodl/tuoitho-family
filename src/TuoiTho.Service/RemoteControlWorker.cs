@@ -19,6 +19,7 @@ public sealed class RemoteControlWorker(
     IClock clock,
     IOptions<WindowsTimeTrackingOptions> timeOptions,
     IOptions<RemoteControlOptions> remoteOptions,
+    RemoteControlRuntimeStatusCache runtimeStatus,
     ILogger<RemoteControlWorker> logger) : BackgroundService
 {
     private readonly JsonSerializerOptions json = CreateJsonOptions();
@@ -27,6 +28,7 @@ public sealed class RemoteControlWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var settings = remoteOptions.Value;
+        runtimeStatus.Configure(settings);
         if (!settings.Enabled)
         {
             RemoteWorkerLog.Disabled(logger);
@@ -39,6 +41,7 @@ public sealed class RemoteControlWorker(
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            runtimeStatus.Failed(exception);
             RemoteWorkerLog.InitializeFailed(logger, exception);
             return;
         }
@@ -48,7 +51,7 @@ public sealed class RemoteControlWorker(
         {
             try { await RunCycleAsync(stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception exception) { RemoteWorkerLog.TransportUnavailable(logger, exception); }
+            catch (Exception exception) { runtimeStatus.Failed(exception); RemoteWorkerLog.TransportUnavailable(logger, exception); }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
@@ -56,6 +59,7 @@ public sealed class RemoteControlWorker(
     public async Task RunCycleAsync(CancellationToken token = default)
     {
         var credential = await identity.GetOrCreateAsync(token);
+        runtimeStatus.IdentityReady(credential.DeviceId);
         foreach (var ack in await state.GetUnacknowledgedResultsAsync(token))
         {
             await transport.AcknowledgeAsync(credential, ack, token);
@@ -63,6 +67,7 @@ public sealed class RemoteControlWorker(
         }
 
         var commands = await transport.ReceiveCommandsAsync(credential, token);
+        runtimeStatus.CommandPollSucceeded(clock.UtcNow);
         foreach (var command in commands.Take(100))
         {
             try { await ProcessCommandAsync(credential, command, token); }
@@ -78,6 +83,7 @@ public sealed class RemoteControlWorker(
             var status = profile is null ? null : await parent.GetRemoteStatusAsync(profile.ProfileId, token);
             if (profile is not null && status is not null)
             {
+                runtimeStatus.PolicyObserved(profile.ProfileId, profile.ManagedSessionId, status.TestMode);
                 var policyRevision = await remotePolicies.GetAppliedRevisionAsync(credential.DeviceId, token);
                 var appDefault = await appPolicies.GetDefaultPolicyAsync(profile.ProfileId, token);
                 var appRules = await appPolicies.GetRulesAsync(profile.ProfileId, token);
@@ -92,6 +98,7 @@ public sealed class RemoteControlWorker(
                     publishedRevision, publishedRevision, webRevision, "HEALTHY", policySnapshot);
                 await transport.PublishStatusAsync(credential, remoteStatus, token);
                 lastPublished = clock.UtcNow;
+                runtimeStatus.StatusPublished(clock.UtcNow);
             }
         }
     }
