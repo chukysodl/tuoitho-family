@@ -88,3 +88,12 @@ User chỉ nên phải test các mốc lớn, không test các bước kỹ thu�
 
 - M1 soft-lock recovery is deliberately visual-only: the same-screen recovery panel foregrounds the local Parent UI or hides the overlay with F12 without changing policy, quota, grants, TestMode, or SQLite state.
 - TASK-005A bổ sung Parent Dashboard local-first: editor quota ngày và lịch tuần (tối đa hai khung/ngày), kiểm tra tiếng Việt, SQLite persistence và tab Thời gian. Precedence: Parent Lock > Emergency Override tương thích TASK-003 > Schedule > Quota > Allowed; grant chỉ tăng quota, không vượt lock/lịch. Commit `cafab97f95c003825e8ca6a5a0190bf8651d3e0c`; Actions `35086492938` PASS.
+
+## 8. Verified closeout — 2026-09-23
+
+- `main` includes TASK-005 and TASK-006. Integrated baseline: `cf5d3a7954690a6af689ea78adfb1f2c1b4a3dd7`; GitHub Actions run `35803055541` PASS.
+- TASK-005 Parent Dashboard, daily quota, and weekly schedule are complete and user-confirmed (M3).
+- TASK-006 custom website policy, Chrome/Edge Native Messaging, YouTube channel/Shorts/Playables, TikTok creator controls, and stable extension update/repair flow are complete and user-confirmed (M4).
+- TASK-007 is partial: channel/Shorts work shipped with TASK-006; YouTube search-keyword controls are not present in the current code.
+- TASK-008 depends on TASK-005 and can proceed independently of the remaining TASK-007 search work.
+- Preserve the local uncommitted `Directory.Packages.props` change in the original developer worktree; it is not part of the verified baseline.

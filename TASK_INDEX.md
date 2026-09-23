@@ -6,11 +6,11 @@
 | TASK-002 | Windows session/time accounting engine | 001 | No |
 | TASK-003 | Device schedule + daily quota enforcement | 002 | **Yes – M1** |
 | TASK-004 | Application/game policy engine | 003 | **Yes – M2** |
-| TASK-005 | Local Parent Dashboard + requests | 004 | **Yes – M3** |
-| TASK-006 | Managed browser + website allowlist | 005 | **Yes** |
-| TASK-007 | YouTube channel/search controls | 006 | **Yes – M4** |
-| TASK-008 | Optional remote control/sync adapter | 005 | **Yes – M5** |
+| TASK-005 | Local Parent Dashboard + time requests | 004 | **Yes – M3; complete** |
+| TASK-006 | Managed browser + custom websites + YouTube channel/Shorts/Playables + TikTok controls | 005 | **Yes – M4; complete** |
+| TASK-007 | YouTube search-keyword controls | 006 | **Yes; outstanding** |
+| TASK-008 | Optional remote control/sync adapter | 005 | **Yes – M5; may run parallel with 007** |
 | TASK-009 | Installer, startup, ACL, tamper hardening | 008 | **Yes** |
 | TASK-010 | Release pipeline + community docs | 009 | **Yes – RC1** |
 
-Do not start TASK-00N+1 until TASK-00N is merged/PASS, except where dependency column explicitly permits parallel work.
+Do not start the next dependent task before its dependency is merged and PASS. Tasks whose dependency is already PASS may proceed in parallel as shown above.

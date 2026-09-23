@@ -1,16 +1,16 @@
 # Task Status
 
-| Task | Status | Branch | Commit | User acceptance |
+| Task | Status | Branch / baseline | Evidence | User acceptance |
 |---|---|---|---|---|
-| TASK-001 | PASS | task/001-bootstrap | 3225628; Actions 34552234667 PASS | not required |
-| TASK-002 | PASS | task/002-time-engine | 6304c03; Actions 34574851490 PASS | not required |
-| TASK-003 | PASS | task/003-device-time-policy | 8d2cad5; Actions 34815667678 PASS | M1 accepted |
-| TASK-004 | PASS / COMPLETE (A, B1, B2, B2A and final dedup) | main | f277036eaa748e58f33f0ff92c419ca0a8e2be27; Branch Actions 35071280376 PASS; Main Actions 35071468605 PASS | M2 accepted |
-| TASK-005 | PASS / COMPLETE (M3 foundation) | task/005-parent-dashboard | cafab97f95c003825e8ca6a5a0190bf8651d3e0c; Actions 35086492938 PASS | automated verification PASS |
-| TASK-006 | PENDING | task/006-web-control | - | yes |
-| TASK-007 | PENDING | task/007-youtube-control | - | M4 |
-| TASK-008 | PENDING | task/008-remote-control | - | M5 |
-| TASK-009 | PENDING | task/009-installer-hardening | - | yes |
-| TASK-010 | PENDING | task/010-community-release | - | RC1 |
+| TASK-001 | PASS | task/001-bootstrap | Actions 34552234667 PASS | not required |
+| TASK-002 | PASS | task/002-time-engine | Actions 34574851490 PASS | not required |
+| TASK-003 | PASS | task/003-device-time-policy | Actions 34815667678 PASS | M1 accepted |
+| TASK-004 | PASS / COMPLETE | main | Actions 35071468605 PASS | M2 accepted |
+| TASK-005 | PASS / COMPLETE — local Parent Dashboard, daily quota, weekly schedule | main (TASK-005 branch head d9bda0c) | TASK-005 Actions 35086748114 PASS; integrated baseline Actions 35803055541 PASS | M3 functionality confirmed by user |
+| TASK-006 | PASS / COMPLETE — browser control, custom URL/domain/path, YouTube channels/Shorts/Playables, TikTok creators, stable extension identity | main (TASK-006 branch head e431404) | TASK-006 Actions 35689497912 PASS; integrated baseline Actions 35803055541 PASS | M4 functionality confirmed by user |
+| TASK-007 | PARTIAL — YouTube channel and Shorts behavior is delivered through TASK-006; YouTube search-keyword controls are not implemented | included in main through TASK-006 | no separate TASK-007 implementation/CI | channel/Shorts confirmed; search remains outstanding |
+| TASK-008 | PENDING — remote control/sync | task/008-remote-control to be created from verified main | — | M5 |
+| TASK-009 | PENDING | task/009-installer-hardening | — | yes |
+| TASK-010 | PENDING | task/010-community-release | — | RC1 |
 
-Update this file after each merged task.
+Verified integrated baseline: `main` at `cf5d3a7954690a6af689ea78adfb1f2c1b4a3dd7`; GitHub Actions run `35803055541` PASS. TASK-008 may proceed because its declared dependency is TASK-005, which is merged and validated. TASK-007 search remains separate work.
