@@ -24,10 +24,9 @@ public sealed class NativeHostLaunchArgumentsTests
     [InlineData("--service-probe")]
     public void WrongOrUnexpectedNativeHostArgumentsAreRejected(params string[] args) => Assert.False(NativeHostLaunchArguments.TryValidate(args, Config, out _));
 
-    [Fact]
+    [LocalM4ConfigFact]
     public async Task ChromeLikeNativeHostProcessReturnsOnlyFramedResponseWhenLocalM4ConfigExists()
     {
-        if (!File.Exists(BrowserControlConfiguration.DefaultPath)) return;
         var config = BrowserControlConfiguration.Load();
         var root = RepositoryRoot();
         var executable = Path.Combine(root, "src", "TuoiTho.BrowserHost", "bin", "Release", "net10.0-windows", "TuoiTho.BrowserHost.exe");
@@ -62,5 +61,27 @@ public sealed class NativeHostLaunchArgumentsTests
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
             if (File.Exists(Path.Combine(directory.FullName, "TuoiTho.sln"))) return directory.FullName;
         throw new DirectoryNotFoundException("TuoiTho.sln was not found.");
+    }
+}
+
+public sealed class LocalM4ConfigFactAttribute : FactAttribute
+{
+    public LocalM4ConfigFactAttribute()
+    {
+        var path = BrowserControlConfiguration.DefaultPath;
+        if (!File.Exists(path))
+        {
+            Skip = "Local M4 browser config is not installed; live native-host integration is not applicable.";
+            return;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            Skip = "Local M4 browser config exists but is ACL-protected from this test identity.";
+        }
     }
 }

@@ -97,3 +97,11 @@ User chỉ nên phải test các mốc lớn, không test các bước kỹ thu�
 - TASK-007 is partial: channel/Shorts work shipped with TASK-006; YouTube search-keyword controls are not present in the current code.
 - TASK-008 depends on TASK-005 and can proceed independently of the remaining TASK-007 search work.
 - Preserve the local uncommitted `Directory.Packages.props` change in the original developer worktree; it is not part of the verified baseline.
+
+## 9. TASK-008 remote control implementation
+
+- `task/008-remote-control` adds Core provider-neutral remote contracts, SQLite replay/policy persistence, DPAPI-protected device identity, a Supabase Edge Function adapter, a mobile-first authenticated dashboard, and Parent UI pairing-code generation.
+- Remote lock/unlock/grant reuse the local policy actions; unlock clears Parent Lock only, and schedule/quota remain authoritative. SyncPolicy is validated and applied atomically while preserving local TestMode, managed SID/session, Parent Lock, and Emergency Override.
+- Cloud outages are best-effort transport failures only; the local SQLite policy/enforcement path does not depend on network availability.
+- Automated coverage uses a fake transport plus SQLite persistence and dashboard/Edge Function security fixtures. No Supabase project credentials were available, so no cloud deployment or external-network phone acceptance has been performed.
+- M5 requires configuring/deploying a Supabase project and completing the short external-network acceptance in `docs/TASK_008_REMOTE_CONTROL.md`. Keep TestMode enabled during the first remote lock/unlock acceptance.

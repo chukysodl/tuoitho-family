@@ -1,0 +1,7 @@
+[functions.device-gateway]
+# Device operations use the per-device bearer credential and hash verification in this function.
+# Do not remove those checks when platform JWT validation is disabled here.
+verify_jwt = false
+
+[functions.parent-gateway]
+verify_jwt = true

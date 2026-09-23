@@ -34,7 +34,9 @@ public sealed class SqliteDatabaseTests
                 Assert.True(classificationFound);
             }
 
-            Assert.Equal(8, SqliteDatabase.CurrentSchemaVersion);
+            Assert.Equal(9, SqliteDatabase.CurrentSchemaVersion);
+            await using (var connection = await database.OpenConnectionAsync())
+                Assert.Equal(1, await CountTablesAsync(connection, "remote_devices"));
         }
         finally
         {

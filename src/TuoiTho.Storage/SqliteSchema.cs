@@ -4,7 +4,7 @@ internal sealed record Migration(string Id, string Sql);
 
 internal static class SqliteSchema
 {
-    public const int CurrentVersion = 8;
+    public const int CurrentVersion = 9;
 
     public static IReadOnlyList<Migration> Migrations { get; } =
     [
@@ -182,6 +182,37 @@ internal static class SqliteSchema
                 revision INTEGER NOT NULL DEFAULT 0,
                 updated_at_utc TEXT NOT NULL,
                 FOREIGN KEY (profile_id) REFERENCES child_profiles (profile_id)
+            );
+            """),
+        new Migration(
+            "0009-remote-control-state",
+            """
+            CREATE TABLE IF NOT EXISTS remote_devices (
+                device_id TEXT NOT NULL PRIMARY KEY,
+                device_name TEXT NOT NULL,
+                protected_credential BLOB NOT NULL,
+                created_at_utc TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS remote_pairings (
+                code_sha256 TEXT NOT NULL PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                expires_at_utc TEXT NOT NULL,
+                consumed_at_utc TEXT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_remote_pairings_expiry ON remote_pairings (expires_at_utc);
+            CREATE TABLE IF NOT EXISTS remote_command_receipts (
+                command_id TEXT NOT NULL PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                nonce TEXT NOT NULL,
+                received_at_utc TEXT NOT NULL,
+                acknowledgement_json TEXT NULL,
+                acknowledgement_sent_at_utc TEXT NULL,
+                UNIQUE(device_id, nonce)
+            );
+            CREATE TABLE IF NOT EXISTS remote_policy_state (
+                device_id TEXT NOT NULL PRIMARY KEY,
+                applied_revision INTEGER NOT NULL,
+                applied_at_utc TEXT NOT NULL
             );
             """)
     ];

@@ -29,6 +29,9 @@ public sealed class ParentDesktopController(IParentControlClient client, string 
     public Task<ParentUiResult> SendAsync(ParentControlAction action, int? minutes = null, CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(action, profileId, sessionId, minutes), token);
 
+    public Task<ParentUiResult> CreateRemotePairingAsync(CancellationToken token = default) =>
+        ExecuteAsync(new ParentControlCommand(ParentControlAction.CreateRemotePairing, profileId, sessionId), token);
+
     public Task<ParentUiResult> SendAppAsync(ParentControlAction action, AppIdentity application, CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(action, profileId, sessionId, null, application), token);
 

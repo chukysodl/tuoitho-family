@@ -1,5 +1,6 @@
 using TuoiTho.Core.Policy;
 using TuoiTho.Core.Time;
+using TuoiTho.Core.Remote;
 
 namespace TuoiTho.Service;
 
@@ -22,18 +23,20 @@ public sealed class ParentControlService : IDisposable
     private ParentAppDiscoveryDiagnostics? lastAppDiscovery;
     private readonly IWebPolicyStore? webPolicies;
     private readonly BrowserRuntimeStatusCache? browserRuntime;
+    private readonly RemoteDeviceIdentityManager? remoteIdentity;
+    private readonly IRemotePolicyStore? remotePolicies;
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
     public ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes,
         ActivitySampleCache? activityCache = null, WindowsSessionEventSource? sessionEventSource = null, SessionTimeEngine? timeEngine = null,
         IAppPolicyStore? appPolicies = null, AppPolicyEngine? appPolicyEngine = null, IManagedSessionAppDiscovery? appDiscovery = null,
         AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null, IWebPolicyStore? webPolicies = null,
-        BrowserRuntimeStatusCache? browserRuntime = null)
+        BrowserRuntimeStatusCache? browserRuntime = null, RemoteDeviceIdentityManager? remoteIdentity = null, IRemotePolicyStore? remotePolicies = null)
     {
         this.store = store; this.usage = usage; this.clock = clock; this.engine = engine; this.changes = changes;
         this.activityCache = activityCache; this.sessionEventSource = sessionEventSource; this.timeEngine = timeEngine;
         this.appPolicies = appPolicies; this.appPolicyEngine = appPolicyEngine; this.appDiscovery = appDiscovery;
-        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies; this.browserRuntime = browserRuntime;
+        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies; this.browserRuntime = browserRuntime; this.remoteIdentity = remoteIdentity; this.remotePolicies = remotePolicies;
     }
 
     public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes)
@@ -57,6 +60,19 @@ public sealed class ParentControlService : IDisposable
             var policy = await store.LoadAsync(command.ProfileId, token);
             if (policy is null || policy.ManagedSessionId != command.ManagedSessionId) return new(false, "PROFILE_OR_SESSION_MISMATCH");
             if (command.Action is ParentControlAction.GetStatus or ParentControlAction.GetApps) return new(true, null, policy, await StatusAsync(policy, token));
+            if (command.Action == ParentControlAction.CreateRemotePairing)
+            {
+                if (remoteIdentity is null) return new(false, "REMOTE_NOT_CONFIGURED", policy, await StatusAsync(policy, token), "Điều khiển từ xa chưa được cấu hình.");
+                try
+                {
+                    var code = await remoteIdentity.CreatePairingCodeAsync(token);
+                    return new(true, null, policy, await StatusAsync(policy, token), $"Mã ghép nối (hết hạn sau 5 phút, chỉ dùng một lần): {code}");
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    return new(false, "REMOTE_PAIRING_FAILED", policy, await StatusAsync(policy, token), "Không thể tạo mã ghép nối. Kiểm tra kết nối và cấu hình điều khiển từ xa.");
+                }
+            }
             if (command.Action == ParentControlAction.GetWebRules) return new(true, null, policy, await StatusAsync(policy, token));
             if (command.Action is ParentControlAction.SaveWebRule or ParentControlAction.RemoveWebRule) return await ExecuteWebAsync(command, policy, token);
             if (command.Action == ParentControlAction.RefreshApps) return await RefreshAppsAsync(policy, token);
@@ -251,6 +267,31 @@ public sealed class ParentControlService : IDisposable
         var snapshot = webPolicies is null ? null : await webPolicies.GetSnapshotAsync(policy.ProfileId, token);
         var web = snapshot is null ? null : new ParentWebControlStatus(snapshot.Rules, browserRuntime?.Snapshot(), snapshot.Revision);
         return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, policy.Windows, web);
+    }
+
+    /// <summary>In-process remote command bridge; remote requests still pass through this service's validated local policy actions.</summary>
+    public Task<ParentControlResult> ExecuteRemoteAsync(ParentControlCommand command, CancellationToken token = default)
+        => ExecuteAsync(command, "S-1-5-18", new HashSet<string>(StringComparer.OrdinalIgnoreCase), token);
+
+    public async Task<ParentControlStatus?> GetRemoteStatusAsync(string profileId, CancellationToken token = default)
+    {
+        var policy = await store.LoadAsync(profileId, token);
+        return policy is null ? null : await StatusAsync(policy, token);
+    }
+
+    public async Task<bool> ApplyRemotePolicyAsync(RemotePolicySnapshot snapshot, string expectedDeviceId, CancellationToken token = default)
+    {
+        if (remotePolicies is null || !string.Equals(snapshot.DeviceId, expectedDeviceId, StringComparison.OrdinalIgnoreCase)) return false;
+        await commandGate.WaitAsync(token);
+        try
+        {
+            var policy = await store.LoadAsync(snapshot.ProfileId, token);
+            if (policy is null || policy.ProfileId != snapshot.ProfileId || policy.ManagedSessionId != snapshot.ManagedSessionId) return false;
+            var applied = await remotePolicies.ApplyAsync(snapshot, token);
+            if (applied) changes.Notify();
+            return applied;
+        }
+        finally { commandGate.Release(); }
     }
 
     private void RecordEnforcement(DeviceTimePolicy policy, string decision, AppEnforcementAuditAction action)

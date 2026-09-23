@@ -47,14 +47,10 @@ Manifest V3 extension:
 - request access;
 - bridge to local service.
 
-### 7. TuoiTho.Remote.Abstractions
-Provider-neutral interface for:
-- device pairing;
-- command push/poll;
-- policy sync;
-- heartbeat.
+### 7. Remote control and sync
+`TuoiTho.Core.Remote` defines provider-neutral pairing, device status, command, acknowledgement, policy snapshot, and `IRemoteTransport` contracts. `TuoiTho.Service` hosts the transport worker and local command bridge; `TuoiTho.Storage` persists replay receipts and applies validated policy snapshots locally. Supabase schema/Edge Functions are isolated under `infra/supabase`; replacing the provider does not add vendor references to Core.
 
-First provider must be replaceable without rewriting Core.
+Remote control is a command/sync channel only. SQLite and the existing local policy engines remain authoritative offline.
 
 ## Policy evaluation order
 

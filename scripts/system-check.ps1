@@ -66,4 +66,19 @@ if (-not $SkipTests) {
     if ($LASTEXITCODE -ne 0) { throw "System Check Windows adapter proof failed with exit code $LASTEXITCODE." }
 }
 
+$node = Get-Command 'node' -ErrorAction SilentlyContinue
+if (-not $node) { throw 'Node.js is required to validate the mobile remote dashboard.' }
+node --check .\remote-dashboard\app.js
+if ($LASTEXITCODE -ne 0) { throw 'Remote dashboard JavaScript syntax check failed.' }
+node --test .\tests\remote-dashboard\remote-dashboard.test.cjs
+if ($LASTEXITCODE -ne 0) { throw 'Remote dashboard privacy/security fixture tests failed.' }
+
+$deno = Get-Command 'deno' -ErrorAction SilentlyContinue
+if ($deno) {
+    deno check --no-lock .\infra\supabase\functions\device-gateway\index.ts .\infra\supabase\functions\parent-gateway\index.ts
+    if ($LASTEXITCODE -ne 0) { throw 'Supabase Edge Function type check failed.' }
+} else {
+    Write-Output 'Deno Edge Function type check skipped locally (Deno CLI unavailable); GitHub Actions installs Deno and runs this check.'
+}
+
 Write-Output "SYSTEM CHECK PASS ($Configuration)"

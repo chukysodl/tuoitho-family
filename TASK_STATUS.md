@@ -9,7 +9,7 @@
 | TASK-005 | PASS / COMPLETE — local Parent Dashboard, daily quota, weekly schedule | main (TASK-005 branch head d9bda0c) | TASK-005 Actions 35086748114 PASS; integrated baseline Actions 35803055541 PASS | M3 functionality confirmed by user |
 | TASK-006 | PASS / COMPLETE — browser control, custom URL/domain/path, YouTube channels/Shorts/Playables, TikTok creators, stable extension identity | main (TASK-006 branch head e431404) | TASK-006 Actions 35689497912 PASS; integrated baseline Actions 35803055541 PASS | M4 functionality confirmed by user |
 | TASK-007 | PARTIAL — YouTube channel and Shorts behavior is delivered through TASK-006; YouTube search-keyword controls are not implemented | included in main through TASK-006 | no separate TASK-007 implementation/CI | channel/Shorts confirmed; search remains outstanding |
-| TASK-008 | PENDING — remote control/sync | task/008-remote-control to be created from verified main | — | M5 |
+| TASK-008 | IMPLEMENTED — remote transport, pairing, commands, policy sync, dashboard; awaiting provider deployment and M5 acceptance | task/008-remote-control | local Release/build/tests/system-check + fake transport; Actions pending | M5 not run (no Supabase project credentials in workspace) |
 | TASK-009 | PENDING | task/009-installer-hardening | — | yes |
 | TASK-010 | PENDING | task/010-community-release | — | RC1 |
 

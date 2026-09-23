@@ -9,7 +9,7 @@
 | TASK-005 | Local Parent Dashboard + time requests | 004 | **Yes – M3; complete** |
 | TASK-006 | Managed browser + custom websites + YouTube channel/Shorts/Playables + TikTok controls | 005 | **Yes – M4; complete** |
 | TASK-007 | YouTube search-keyword controls | 006 | **Yes; outstanding** |
-| TASK-008 | Optional remote control/sync adapter | 005 | **Yes – M5; may run parallel with 007** |
+| TASK-008 | Remote control/sync adapter | 005 | **Yes – M5; code gates then external provider/phone acceptance; may run parallel with 007** |
 | TASK-009 | Installer, startup, ACL, tamper hardening | 008 | **Yes** |
 | TASK-010 | Release pipeline + community docs | 009 | **Yes – RC1** |
 
