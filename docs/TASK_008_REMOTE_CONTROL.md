@@ -34,7 +34,7 @@ Remote status contains friendly device name, online/last-seen, used/remaining se
 
 The public-key setting belongs on a trusted parent-controlled dashboard origin. For a community/self-host deployment, host the static `remote-dashboard` over HTTPS and operate the Supabase project and Edge Function secrets yourself. Free-tier availability/limits can change; see [ADR-008](adr/ADR-008-remote-provider.md).
 
-CI type-checks both Edge Functions with Deno. Local `system-check.ps1` does the same when the Deno CLI is installed and explicitly reports a local skip otherwise.
+CI type-checks both Edge Functions with Deno. Local `system-check.ps1` does the same when the Deno CLI is installed and explicitly reports a local skip otherwise. Implementation commit `912222cae57c6d2a1578c8e3e3b314d1b3397cfb` passed Actions run `35806837895`.
 
 Supabase's current documented CLI flow uses `supabase login`, `supabase link --project-ref <project-id>`, `supabase db push`, and `supabase functions deploy`; check the current [database migration deployment guide](https://supabase.com/docs/guides/deployment/database-migrations) and [function deployment guide](https://supabase.com/docs/guides/functions/deploy) before deployment.
 
