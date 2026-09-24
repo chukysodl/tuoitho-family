@@ -39,3 +39,5 @@ jobs:
       - name: Deploy dashboard
         id: deployment
         uses: actions/deploy-pages@v4
+
+# Deployment trigger after enabling GitHub Pages.
