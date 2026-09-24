@@ -1,43 +1,14 @@
 name: Deploy remote parent dashboard
 
 on:
-  push:
-    branches:
-      - main
-      - task/008-remote-control
-    paths:
-      - 'remote-dashboard/**'
-      - '.github/workflows/remote-dashboard-pages.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: remote-dashboard-pages
-  cancel-in-progress: false
-
 jobs:
-  deploy:
+  note:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Check out dashboard
-        uses: actions/checkout@v4
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-      - name: Upload static HTTPS dashboard
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: remote-dashboard
-      - name: Deploy dashboard
-        id: deployment
-        uses: actions/deploy-pages@v4
-
-# Deployment trigger after enabling GitHub Pages.
+      - name: Deployment routing
+        run: echo "M5 Pages deployment is intentionally run from main so the github-pages environment can authorize it. The main workflow checks out task/008-remote-control."
