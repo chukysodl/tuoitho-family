@@ -132,7 +132,7 @@ $publishReady = $null -ne $publishTime -and ($now - $publishTime).TotalSeconds -
 Show-Check 'Status publication working' $publishReady ($(if ($publishReady) { 'Recent successful publish: ' + $publishTime.ToLocalTime().ToString('HH:mm:ss') } else { 'No recent successful status publish.' })) 'Keep Service online with the network available, then wait up to 30 seconds and rerun this check.'
 Show-Check 'Command polling working' $pollReady ($(if ($pollReady) { 'Recent successful poll: ' + $pollTime.ToLocalTime().ToString('HH:mm:ss') } else { 'No recent successful command poll.' })) 'Check Service logs/network; keep the Supabase project online and rerun this check.'
 $testMode = $null -ne $runtime -and $runtime.TestMode -eq $true
-$testModeDetail = if ($null -eq $runtime -or $null -eq $runtime.TestMode) { 'Service did not return the current TestMode state.' } elseif ($testMode) { 'TestMode is enabled; remote LOCK NOW remains simulation-only.' } else { 'CHẾ ĐỘ THỰC đang bật; M5 first acceptance requires safe TestMode.' }
+$testModeDetail = if ($null -eq $runtime -or $null -eq $runtime.TestMode) { 'Service did not return the current TestMode state.' } elseif ($testMode) { 'TestMode is enabled; remote LOCK NOW remains simulation-only.' } else { 'Real mode is enabled; M5 first acceptance requires safe TestMode.' }
 Show-Check 'TestMode' $testMode $testModeDetail 'Enable TestMode using the existing local M1/test setup before M5. This script never changes TestMode.'
 
 if ($failures.Count -gt 0) {
