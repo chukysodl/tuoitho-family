@@ -20,14 +20,20 @@ if (-not (Test-Administrator)) {
 
 function Stop-Fail([string]$Message, [int]$Code = 1) {
     Write-Host "M5 SETUP FAIL: $Message" -ForegroundColor Red
+    if ($Elevated) {
+        Write-Host ''
+        Read-Host 'Press Enter to close this administrator window' | Out-Null
+    }
     exit $Code
 }
 
 $supabaseCommand = Get-Command supabase -ErrorAction SilentlyContinue
+$npxCommand = Get-Command npx.cmd -ErrorAction SilentlyContinue
+if ($null -eq $npxCommand) { $npxCommand = Get-Command npx -ErrorAction SilentlyContinue }
 $useNpx = $false
 if ($null -eq $supabaseCommand) {
     $node = Get-Command node -ErrorAction SilentlyContinue
-    $npx = Get-Command npx -ErrorAction SilentlyContinue
+    $npx = $npxCommand
     $nodeMajor = 0
     if ($node) { $version = (& node --version 2>$null); if ($version -match '^v(\d+)') { $nodeMajor = [int]$Matches[1] } }
     if ($npx -and $nodeMajor -ge 20) {
@@ -42,13 +48,13 @@ if ($null -eq $supabaseCommand) {
 }
 
 function Invoke-Supabase([string[]]$CliArgs) {
-    if ($script:useNpx) { & npx --yes supabase@latest @CliArgs }
+    if ($script:useNpx) { & $script:npxCommand.Source --yes supabase@latest @CliArgs }
     else { & supabase @CliArgs }
     if ($LASTEXITCODE -ne 0) { throw "Supabase CLI failed (exit $LASTEXITCODE): $($CliArgs -join ' ')" }
 }
 
 function Get-SupabaseProjects {
-    if ($script:useNpx) { $raw = & npx --yes supabase@latest projects list --output json }
+    if ($script:useNpx) { $raw = & $script:npxCommand.Source --yes supabase@latest projects list --output json }
     else { $raw = & supabase projects list --output json }
     if ($LASTEXITCODE -ne 0) { throw 'Supabase login is missing or project list is unavailable.' }
     try { return @((($raw | Out-String).Trim() | ConvertFrom-Json)) }
@@ -150,13 +156,13 @@ try {
     Push-Location $supabaseRoot
     try {
         $projectRef = Read-ProjectRef
-        Write-Host 'Linking the Supabase project…'
+        Write-Host 'Linking the Supabase project...'
         Invoke-Supabase @('link', '--project-ref', $projectRef)
-        Write-Host 'Applying repository database migrations…'
+        Write-Host 'Applying repository database migrations...'
         Invoke-Supabase @('db', 'push')
-        Write-Host 'Deploying device-gateway…'
+        Write-Host 'Deploying device-gateway...'
         Invoke-Supabase @('functions', 'deploy', 'device-gateway', '--project-ref', $projectRef)
-        Write-Host 'Deploying parent-gateway…'
+        Write-Host 'Deploying parent-gateway...'
         Invoke-Supabase @('functions', 'deploy', 'parent-gateway', '--project-ref', $projectRef)
     } finally { Pop-Location }
 
@@ -190,13 +196,14 @@ try {
     $json = $config | ConvertTo-Json -Depth 5
     [IO.File]::WriteAllText($temporaryConfig, $json, [Text.UTF8Encoding]::new($false))
     Set-RemoteConfigAcl $temporaryConfig $false
-    [IO.File]::Move($temporaryConfig, $configPath, $true)
+    if (Test-Path $configPath) { Remove-Item -LiteralPath $configPath -Force }
+    Move-Item -LiteralPath $temporaryConfig -Destination $configPath -Force
 
     Restart-TuoiThoServiceSafely
     Write-Host 'REMOTE DEVICE CONFIG: PASS' -ForegroundColor Green
     Write-Host "Config file: $configPath (public settings only; restricted to SYSTEM/Administrators for writes)."
     Write-Host "Phone dashboard: $dashboardUrl"
-    Write-Host "For email-confirmed Supabase accounts, set Auth → URL Configuration → Site URL to $dashboardUrl; keep email confirmation enabled."
+    Write-Host "For email-confirmed Supabase accounts, set Auth > URL Configuration > Site URL to $dashboardUrl; keep email confirmation enabled."
     Write-Host 'Next: run M5-REMOTE-CHECK.cmd. No TestMode or local policy setting was changed.'
     exit 0
 } catch {
