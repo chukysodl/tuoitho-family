@@ -107,6 +107,12 @@ for ($attempt = 1; $attempt -le 10; $attempt++) {
     } catch { }
     if ($attempt -lt 10) { Start-Sleep -Milliseconds 750 }
 }
+if ($runtime) {
+    Write-Host ("[INFO] Runtime EXE: {0}" -f ([string]$runtime.RuntimeExecutablePath)) -ForegroundColor Cyan
+    Write-Host ("[INFO] Runtime Build: {0}" -f ([string]$runtime.RuntimeBuildVersion)) -ForegroundColor Cyan
+    Write-Host ("[INFO] Runtime Config Path: {0}" -f ([string]$runtime.RemoteConfigPath)) -ForegroundColor Cyan
+    Write-Host ("[INFO] Runtime Config Exists: {0}" -f ([string]$runtime.RemoteConfigFileExists)) -ForegroundColor Cyan
+}
 $runtimeEnabled = $null -ne $runtime -and $runtime.Enabled -eq $true
 $runtimeConfigValid = $null -ne $runtime -and $runtime.ConfigurationValid -eq $true
 Show-Check 'Service Remote Enabled' $runtimeEnabled ($(if ($runtimeEnabled) { 'Service loaded RemoteControl.Enabled=true.' } else { 'Service did not load RemoteControl.Enabled=true.' })) 'The Service did not load the protected remote configuration.'
