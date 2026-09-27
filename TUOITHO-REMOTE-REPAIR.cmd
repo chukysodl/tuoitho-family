@@ -23,43 +23,55 @@ if not exist "%PROJECT_REF_FILE%" (
   pause
   exit /b 2
 )
-
 set /p PROJECT_REF=<"%PROJECT_REF_FILE%"
-if "%PROJECT_REF%"=="" (
-  echo [LOI] Project Ref rong.
+
+echo [1/5] Dang dung runtime cu...
+call "%~dp0scripts\M1-STOP.cmd"
+sc.exe stop "TuoiTho.Service" >nul 2>&1
+timeout /t 2 /nobreak >nul
+
+echo [2/5] Dang build ban sua moi nhat...
+dotnet build "%~dp0TuoiTho.sln" --configuration Release
+if errorlevel 1 (
+  echo [LOI] Build that bai.
   pause
-  exit /b 2
+  exit /b 3
 )
 
 where npx.cmd >nul 2>&1
 if errorlevel 1 (
   echo [LOI] Khong tim thay npx.cmd / Node.js.
   pause
-  exit /b 3
+  exit /b 4
 )
 
-echo [1/2] Dang cap nhat device-gateway tren Supabase...
+echo [3/5] Dang cap nhat device-gateway tren Supabase...
 pushd "%~dp0infra\supabase"
 call npx.cmd --yes supabase@latest functions deploy device-gateway --project-ref "%PROJECT_REF%"
 set "RC=%ERRORLEVEL%"
 popd
 if not "%RC%"=="0" (
-  echo.
   echo [LOI] Khong deploy duoc device-gateway.
-  echo Neu Supabase CLI yeu cau dang nhap, chay: npx.cmd supabase login
   pause
   exit /b %RC%
 )
 
-echo.
-echo [2/3] Dang migrate danh tinh thiet bi...
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$svc=Get-Service -Name 'TuoiTho.Service' -ErrorAction SilentlyContinue; if($svc){ if($svc.Status -eq 'Running'){Stop-Service 'TuoiTho.Service' -Force}; Start-Service 'TuoiTho.Service'; Start-Sleep -Seconds 8; Stop-Service 'TuoiTho.Service' -Force; exit 0 } else { exit 0 }"
+echo [4/5] Dang thu migrate credential cu bang SYSTEM...
+set "MIGRATION_SERVICE=TuoiTho.RemoteMigration"
+set "SERVICE_EXE=%~dp0src\TuoiTho.Service\bin\Release\net10.0-windows\TuoiTho.Service.exe"
+sc.exe stop "%MIGRATION_SERVICE%" >nul 2>&1
+sc.exe delete "%MIGRATION_SERVICE%" >nul 2>&1
+sc.exe create "%MIGRATION_SERVICE%" binPath= "\"%SERVICE_EXE%\"" start= demand obj= LocalSystem >nul
 if errorlevel 1 (
-  echo [CANH BAO] Khong migrate qua Windows Service; se thu bang runtime hien tai.
+  echo [CANH BAO] Khong tao duoc migration service. Se thu tiep bang tai khoan hien tai.
+) else (
+  sc.exe start "%MIGRATION_SERVICE%" >nul 2>&1
+  timeout /t 8 /nobreak >nul
+  sc.exe stop "%MIGRATION_SERVICE%" >nul 2>&1
+  timeout /t 2 /nobreak >nul
+  sc.exe delete "%MIGRATION_SERVICE%" >nul 2>&1
 )
 
-echo.
-echo [3/3] Dang khoi dong lai Tuoi Tho...
+echo [5/5] Dang khoi dong lai Tuoi Tho va kiem tra...
 call "%~dp0TUOITHO-START.cmd"
 exit /b %ERRORLEVEL%
