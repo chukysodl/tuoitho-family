@@ -59,6 +59,15 @@ Deno.serve(async (request) => {
     return error ? json({ error: "DEVICE_LIST_FAILED" }, 503) : json({ devices: data ?? [] });
   }
 
+  if (input.action === "repair_device_registration") {
+    const deviceId = input.deviceId;
+    if (!uuid(deviceId)) return json({ error: "INVALID_DEVICE" }, 400);
+    const { data: device } = await db.from("remote_devices").select("device_id").eq("device_id", deviceId).eq("owner_id", userData.user.id).maybeSingle();
+    if (!device) return json({ error: "DEVICE_NOT_OWNED" }, 404);
+    const { error } = await db.from("remote_devices").delete().eq("device_id", deviceId).eq("owner_id", userData.user.id);
+    return error ? json({ error: "DEVICE_REPAIR_FAILED" }, 503) : json({ repaired: true, deviceId });
+  }
+
   if (input.action === "send_command") {
     const deviceId = input.deviceId;
     const kind = input.kind;
