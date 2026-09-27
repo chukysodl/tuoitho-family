@@ -164,6 +164,13 @@ $pollReady = $null -ne $pollTime -and ($now - $pollTime).TotalSeconds -le 120
 $publishReady = $null -ne $publishTime -and ($now - $publishTime).TotalSeconds -le 120
 $testMode = $null -ne $runtime -and $runtime.TestMode -eq $true
 
+if ($ExpectRealMode) {
+    $svcReal = Get-CimInstance Win32_Service -Filter "Name='TuoiTho.Service'" -ErrorAction SilentlyContinue
+    $localSystemHost = $null -ne $svcReal -and $svcReal.State -eq 'Running' -and
+        ([string]$svcReal.StartName -eq 'LocalSystem' -or [string]$svcReal.StartName -eq 'LocalSystemAccount')
+    Show-Check 'Real-mode Service host' $localSystemHost ($(if ($localSystemHost) { "TuoiTho.Service is running as $($svcReal.StartName)." } else { 'TuoiTho.Service is not running as LocalSystem.' })) 'Run TUOITHO-REAL-MODE.cmd so real enforcement is hosted by the Windows Service.'
+}
+
 if ($PrePair) {
     Write-Host '[WAIT] Status publication: starts after device pairing.' -ForegroundColor Yellow
     Write-Host '[WAIT] Command polling: starts after device pairing.' -ForegroundColor Yellow
