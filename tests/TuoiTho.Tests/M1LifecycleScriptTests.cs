@@ -16,6 +16,29 @@ public sealed class M1LifecycleScriptTests
     }
 
     [Fact]
+    public void StartSupportsPersistentRealAndTestModes()
+    {
+        var script = Script("M1-START.ps1");
+        Assert.Contains("run-mode.txt", script);
+        Assert.Contains("M1Bootstrap__TestMode", script);
+        Assert.Contains("SessionAgent__M1TestMode", script);
+        Assert.Contains("Mode={3}", script);
+    }
+
+    [Fact]
+    public void RootModeSwitchScriptsPersistRealAndTestSelections()
+    {
+        var root = TestRepositoryRoot.Get();
+        var real = File.ReadAllText(Path.Combine(root, "TUOITHO-REAL-MODE.cmd"));
+        var test = File.ReadAllText(Path.Combine(root, "TUOITHO-TEST-MODE.cmd"));
+        Assert.Contains("run-mode.txt", real);
+        Assert.Contains("echo REAL", real);
+        Assert.Contains("choice /C YN", real);
+        Assert.Contains("run-mode.txt", test);
+        Assert.Contains("echo TEST", test);
+    }
+
+    [Fact]
     public void StopVerifiesExecutablePathsAndNeverUsesBroadProcessTermination()
     {
         var script = Script("M1-STOP.ps1");
