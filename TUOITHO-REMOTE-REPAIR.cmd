@@ -45,13 +45,17 @@ if errorlevel 1 (
   exit /b 4
 )
 
-echo [3/5] Dang cap nhat device-gateway tren Supabase...
+echo [3/5] Dang cap nhat remote gateway tren Supabase...
 pushd "%~dp0infra\supabase"
 call npx.cmd --yes supabase@latest functions deploy device-gateway --project-ref "%PROJECT_REF%"
 set "RC=%ERRORLEVEL%"
+if "%RC%"=="0" (
+  call npx.cmd --yes supabase@latest functions deploy parent-gateway --project-ref "%PROJECT_REF%"
+  set "RC=%ERRORLEVEL%"
+)
 popd
 if not "%RC%"=="0" (
-  echo [LOI] Khong deploy duoc device-gateway.
+  echo [LOI] Khong deploy duoc remote gateway.
   pause
   exit /b %RC%
 )
