@@ -19,6 +19,7 @@ if (remoteMachineSettings.Count > 0)
 {
     builder.Configuration.AddInMemoryCollection(remoteMachineSettings);
 }
+var effectiveRemoteOptions = LoadEffectiveRemoteOptions(remoteConfigPath, builder.Configuration);
 
 builder.Services.AddWindowsService(options =>
 {
@@ -48,7 +49,7 @@ builder.Services.AddSingleton<IRemoteCommandStateStore, SqliteRemoteCommandState
 builder.Services.AddSingleton<IRemotePolicyStore, SqliteRemotePolicyStore>();
 builder.Services.AddSingleton<IDeviceCredentialProtector, WindowsDeviceCredentialProtector>();
 builder.Services.AddSingleton<RemoteControlRuntimeStatusCache>();
-builder.Services.Configure<RemoteControlOptions>(builder.Configuration.GetSection(RemoteControlOptions.SectionName));
+builder.Services.AddSingleton<IOptions<RemoteControlOptions>>(Options.Create(effectiveRemoteOptions));
 builder.Services.AddSingleton<SupabaseRemoteTransport>();
 builder.Services.AddSingleton<IRemoteTransport>(services => services.GetRequiredService<SupabaseRemoteTransport>());
 builder.Services.AddSingleton<RemoteDeviceIdentityManager>();
@@ -107,6 +108,52 @@ static string GetDatabasePath()
     return Path.Combine(baseDirectory, "TuoiTho", "tuoitho.db");
 }
 
+
+static RemoteControlOptions LoadEffectiveRemoteOptions(string path, IConfiguration configuration)
+{
+    var fallback = new RemoteControlOptions
+    {
+        Enabled = configuration.GetValue<bool>("RemoteControl:Enabled"),
+        SupabaseUrl = configuration["RemoteControl:SupabaseUrl"] ?? string.Empty,
+        SupabaseAnonKey = configuration["RemoteControl:SupabaseAnonKey"] ?? string.Empty,
+        DeviceName = configuration["RemoteControl:DeviceName"] ?? Environment.MachineName,
+        PairingFunctionName = configuration["RemoteControl:PairingFunctionName"] ?? "device-gateway",
+        ParentFunctionName = configuration["RemoteControl:ParentFunctionName"] ?? "parent-gateway",
+        PollIntervalSeconds = configuration.GetValue<int?>("RemoteControl:PollIntervalSeconds") ?? 5,
+        StatusIntervalSeconds = configuration.GetValue<int?>("RemoteControl:StatusIntervalSeconds") ?? 15
+    };
+
+    if (!File.Exists(path)) return fallback;
+
+    using var document = JsonDocument.Parse(File.ReadAllText(path));
+    if (!document.RootElement.TryGetProperty("RemoteControl", out var remote) || remote.ValueKind != JsonValueKind.Object)
+        return fallback;
+
+    static string ReadString(JsonElement element, string name, string fallbackValue)
+        => element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? fallbackValue
+            : fallbackValue;
+
+    static int ReadInt(JsonElement element, string name, int fallbackValue)
+        => element.TryGetProperty(name, out var value) && value.TryGetInt32(out var parsed) ? parsed : fallbackValue;
+
+    static bool ReadBool(JsonElement element, string name, bool fallbackValue)
+        => element.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.GetBoolean()
+            : fallbackValue;
+
+    return new RemoteControlOptions
+    {
+        Enabled = ReadBool(remote, "Enabled", fallback.Enabled),
+        SupabaseUrl = ReadString(remote, "SupabaseUrl", fallback.SupabaseUrl),
+        SupabaseAnonKey = ReadString(remote, "SupabaseAnonKey", fallback.SupabaseAnonKey),
+        DeviceName = ReadString(remote, "DeviceName", fallback.DeviceName),
+        PairingFunctionName = ReadString(remote, "PairingFunctionName", fallback.PairingFunctionName),
+        ParentFunctionName = ReadString(remote, "ParentFunctionName", fallback.ParentFunctionName),
+        PollIntervalSeconds = ReadInt(remote, "PollIntervalSeconds", fallback.PollIntervalSeconds),
+        StatusIntervalSeconds = ReadInt(remote, "StatusIntervalSeconds", fallback.StatusIntervalSeconds)
+    };
+}
 
 static Dictionary<string, string?> LoadMachineSettings(string path)
 {
