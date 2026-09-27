@@ -13,8 +13,19 @@ using TuoiTho.Storage;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+// Machine-wide runtime settings are used when the enforcement engine runs as a
+// Windows Service under LocalSystem. They carry only local policy/session metadata
+// and never contain Supabase secrets.
+var programDataRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TuoiTho");
+var runtimeConfigPath = Path.Combine(programDataRoot, "runtime-control.json");
+var runtimeMachineSettings = LoadMachineSettings(runtimeConfigPath);
+if (runtimeMachineSettings.Count > 0)
+{
+    builder.Configuration.AddInMemoryCollection(runtimeMachineSettings);
+}
+
 // M5 setup writes public project settings to a protected, machine-wide config file.
-var remoteConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TuoiTho", "RemoteControl", "remote-control.json");
+var remoteConfigPath = Path.Combine(programDataRoot, "RemoteControl", "remote-control.json");
 var remoteMachineSettings = LoadMachineSettings(remoteConfigPath);
 if (remoteMachineSettings.Count > 0)
 {
