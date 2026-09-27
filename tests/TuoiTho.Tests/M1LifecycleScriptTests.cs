@@ -33,7 +33,7 @@ public sealed class M1LifecycleScriptTests
         Assert.Contains("ServiceHost=LocalSystem", script);
         Assert.Contains("sc.exe create", script);
         Assert.Contains("obj= LocalSystem", script);
-        Assert.Contains("Start-Service", script, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("sc.exe start", script, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
