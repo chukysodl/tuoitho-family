@@ -1,4 +1,4 @@
-param([switch]$PrePair)
+param([switch]$PrePair,[switch]$ExpectRealMode)
 $ErrorActionPreference = 'Stop'
 $configPath = Join-Path $env:ProgramData 'TuoiTho\RemoteControl\remote-control.json'
 $repo = Split-Path -Parent $PSCommandPath
@@ -171,8 +171,13 @@ if ($PrePair) {
 } else {
     Show-Check 'Status publication working' $publishReady ($(if ($publishReady) { 'Recent successful publish: ' + $publishTime.ToLocalTime().ToString('HH:mm:ss') } else { 'No recent successful status publish.' })) 'Keep Service online with the network available, then wait up to 30 seconds and rerun this check.'
     Show-Check 'Command polling working' $pollReady ($(if ($pollReady) { 'Recent successful poll: ' + $pollTime.ToLocalTime().ToString('HH:mm:ss') } else { 'No recent successful command poll.' })) 'Check Service logs/network; keep the Supabase project online and rerun this check.'
-    $testModeDetail = if ($null -eq $runtime -or $null -eq $runtime.TestMode) { 'Service did not return the current TestMode state.' } elseif ($testMode) { 'TestMode is enabled; remote LOCK NOW remains simulation-only.' } else { 'Real mode is enabled; M5 first acceptance requires safe TestMode.' }
-    Show-Check 'TestMode' $testMode $testModeDetail 'Enable TestMode using the existing local M1/test setup before M5. This script never changes TestMode.'
+    $testModeDetail = if ($null -eq $runtime -or $null -eq $runtime.TestMode) { 'Service did not return the current TestMode state.' } elseif ($testMode) { 'TestMode is enabled; remote LOCK NOW remains simulation-only.' } else { 'Real mode is enabled.' }
+    if ($ExpectRealMode) {
+        $realModeOk = $null -ne $runtime -and $runtime.TestMode -eq $false
+        Show-Check 'Real mode' $realModeOk ($(if ($realModeOk) { 'Service reports TestMode=false.' } else { 'Service still reports TestMode=true or unknown.' })) 'Run TUOITHO-REAL-MODE.cmd after updating to the latest branch.'
+    } else {
+        Show-Check 'TestMode' $testMode $testModeDetail 'Enable TestMode using TUOITHO-TEST-MODE.cmd when you want safe simulation mode.'
+    }
 }
 
 if ($failures.Count -gt 0) {
