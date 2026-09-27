@@ -101,6 +101,15 @@ function makeDeviceCard(device) {
   action(actions, "+15 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 15 }, card), !commandReady);
   action(actions, "+30 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 30 }, card), !commandReady);
   action(actions, "+60 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 60 }, card), !commandReady);
+  if (!online) {
+    action(actions, "SỬA KẾT NỐI", "unlock", async () => {
+      const ok = window.confirm("Chỉ dùng khi thiết bị đã ghép nhưng OFFLINE lâu. Đăng ký cloud cũ sẽ được xóa; dữ liệu cục bộ trên máy trẻ không bị xóa. Sau đó hãy tạo một mã ghép nối mới trên máy trẻ.");
+      if (!ok) return;
+      await api("/functions/v1/parent-gateway", { action: "repair_device_registration", deviceId: device.device_id });
+      notify("Đã xóa đăng ký cloud cũ. Trên máy trẻ hãy bấm Tạo mã ghép nối và nhập mã mới tại đây.");
+      await refreshDevices();
+    });
+  }
   card.append(actions);
   const note = document.createElement("p"); note.className = "caption"; note.textContent = "Mở khóa chỉ bỏ Parent Lock; lịch và quota vẫn có hiệu lực. Lệnh hết hạn sau 15 phút nếu máy ngoại tuyến."; card.append(note);
 
