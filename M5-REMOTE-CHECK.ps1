@@ -97,15 +97,29 @@ Show-Check 'Supabase URL configured' $urlConfigured $urlDetail 'Rerun M5-REMOTE-
 Show-Check 'Public key configured' $keyConfigured $keyDetail 'Enter only an anon/publishable key. Never enter a secret/service-role key.'
 
 $runtime = $null
+$lastPipeResponse = $null
+$lastPipeError = $null
 for ($attempt = 1; $attempt -le 10; $attempt++) {
     try {
         $response = Get-RemoteDiagnosticsFromPipe
+        $lastPipeResponse = $response
+        $lastPipeError = $null
         if ($response.Accepted -eq $true) {
             $runtime = $response.RemoteDiagnostics
             if ($null -ne $runtime -and $runtime.DeviceIdentityReady -eq $true) { break }
         }
-    } catch { }
+    } catch {
+        $lastPipeError = $_.Exception.Message
+    }
     if ($attempt -lt 10) { Start-Sleep -Milliseconds 750 }
+}
+if ($null -eq $lastPipeResponse) {
+    Write-Host ("[INFO] Remote diagnostics pipe: NO RESPONSE; error={0}" -f $(if ($lastPipeError) { $lastPipeError } else { 'none' })) -ForegroundColor Cyan
+} else {
+    Write-Host ("[INFO] Remote diagnostics pipe: Accepted={0}; Error={1}; HasRemoteDiagnostics={2}" -f
+        $lastPipeResponse.Accepted,
+        $(if ($lastPipeResponse.Error) { [string]$lastPipeResponse.Error } else { 'none' }),
+        ($null -ne $lastPipeResponse.RemoteDiagnostics)) -ForegroundColor Cyan
 }
 if ($runtime) {
     Write-Host ("[INFO] Runtime EXE: {0}" -f ([string]$runtime.RuntimeExecutablePath)) -ForegroundColor Cyan
@@ -113,7 +127,9 @@ if ($runtime) {
     Write-Host ("[INFO] Runtime Config Path: {0}" -f ([string]$runtime.RemoteConfigPath)) -ForegroundColor Cyan
     Write-Host ("[INFO] Runtime Config Exists: {0}" -f ([string]$runtime.RemoteConfigFileExists)) -ForegroundColor Cyan
 }
-$runtimeEnabled = $null -ne $runtime -and $runtime.Enabled -eq $true
+$runtimeAvailable = $null -ne $runtime
+Show-Check 'Remote diagnostics available' $runtimeAvailable ($(if ($runtimeAvailable) { 'Service returned RemoteControlRuntimeDiagnostics.' } else { 'Service returned no RemoteControlRuntimeDiagnostics.' })) 'Fix the local ParentControl diagnostics path before evaluating remote configuration.'
+$runtimeEnabled = $runtimeAvailable -and $runtime.Enabled -eq $true
 $runtimeConfigValid = $null -ne $runtime -and $runtime.ConfigurationValid -eq $true
 Show-Check 'Service Remote Enabled' $runtimeEnabled ($(if ($runtimeEnabled) { 'Service loaded RemoteControl.Enabled=true.' } else { 'Service did not load RemoteControl.Enabled=true.' })) 'The Service did not load the protected remote configuration.'
 Show-Check 'Service Remote Config' $runtimeConfigValid ($(if ($runtimeConfigValid) { 'Service accepted the Supabase URL and public key.' } else { 'Service runtime configuration is not valid.' })) 'Verify the Service loads C:\ProgramData\TuoiTho\RemoteControl\remote-control.json.'
