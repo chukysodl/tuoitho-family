@@ -5,10 +5,11 @@ using TuoiTho.Core.Remote;
 
 namespace TuoiTho.Service;
 
-/// <summary>Protects the durable device bearer credential with the current Windows account's DPAPI key.</summary>
+/// <summary>Protects the durable device bearer credential with machine-scoped Windows DPAPI so the Windows Service and local test runtime can share one device identity.</summary>
 public sealed class WindowsDeviceCredentialProtector : IDeviceCredentialProtector
 {
     private const uint CryptprotectUiForbidden = 0x1;
+    private const uint CryptprotectLocalMachine = 0x4;
     private static readonly byte[] Entropy = "TuoiTho.Remote.DeviceCredential.v1"u8.ToArray();
 
     public byte[] Protect(ReadOnlySpan<byte> secret) => Transform(secret, protect: true);
@@ -26,7 +27,7 @@ public sealed class WindowsDeviceCredentialProtector : IDeviceCredentialProtecto
             var data = new DataBlob(inputBytes.Length, inputHandle.AddrOfPinnedObject());
             var entropy = new DataBlob(Entropy.Length, entropyHandle.AddrOfPinnedObject());
             var success = protect
-                ? CryptProtectData(ref data, null, ref entropy, IntPtr.Zero, IntPtr.Zero, CryptprotectUiForbidden, out output)
+                ? CryptProtectData(ref data, null, ref entropy, IntPtr.Zero, IntPtr.Zero, CryptprotectUiForbidden | CryptprotectLocalMachine, out output)
                 : CryptUnprotectData(ref data, IntPtr.Zero, ref entropy, IntPtr.Zero, IntPtr.Zero, CryptprotectUiForbidden, out output);
             if (!success) throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not protect/unprotect the remote device credential with DPAPI.");
             var result = new byte[output.Length];
