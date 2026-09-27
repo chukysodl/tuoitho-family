@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
@@ -50,6 +51,12 @@ builder.Services.AddSingleton<IRemotePolicyStore, SqliteRemotePolicyStore>();
 builder.Services.AddSingleton<IDeviceCredentialProtector, WindowsDeviceCredentialProtector>();
 var remoteRuntimeStatus = new RemoteControlRuntimeStatusCache();
 remoteRuntimeStatus.Configure(effectiveRemoteOptions);
+remoteRuntimeStatus.Provenance(
+    Environment.ProcessPath,
+    Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString(),
+    remoteConfigPath,
+    File.Exists(remoteConfigPath));
 builder.Services.AddSingleton(remoteRuntimeStatus);
 builder.Services.AddSingleton<IOptions<RemoteControlOptions>>(Options.Create(effectiveRemoteOptions));
 builder.Services.AddSingleton<SupabaseRemoteTransport>();
