@@ -25,6 +25,17 @@ public sealed class RemoteControlRuntimeStatusCache
             LastErrorCode = options.Enabled && (!uriValid || !keyValid) ? "REMOTE_CONFIGURATION_INVALID" : null };
     }
 
+    public void Provenance(string? executablePath, string? buildVersion, string configPath, bool configFileExists)
+    {
+        lock (gate) current = current with
+        {
+            RuntimeExecutablePath = executablePath,
+            RuntimeBuildVersion = buildVersion,
+            RemoteConfigPath = configPath,
+            RemoteConfigFileExists = configFileExists
+        };
+    }
+
     public void IdentityReady(string deviceId)
     {
         lock (gate) current = current with { DeviceIdentityReady = true, DeviceId = deviceId, LastErrorCode = null };
