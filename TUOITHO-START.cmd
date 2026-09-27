@@ -44,20 +44,20 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/3] Dang cho dich vu ket noi Supabase...
-timeout /t 20 /nobreak >nul
+echo [2/3] Dang cho dich vu san sang...
+timeout /t 8 /nobreak >nul
 
-echo [3/3] Dang kiem tra dieu khien tu xa...
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0M5-REMOTE-CHECK.ps1"
+echo [3/3] Dang kiem tra truoc khi ghep noi...
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0M5-REMOTE-CHECK.ps1" -PrePair
 set "RC=%ERRORLEVEL%"
 
 echo.
 if "%RC%"=="0" (
   echo ==========================================
-  echo   TUOI THO REMOTE: READY
+  echo   TUOI THO REMOTE: SAN SANG GHEP NOI
   echo ==========================================
-  echo Mo bang dieu khien tren dien thoai...
-  start "" "https://chukysodl.github.io/tuoitho-family/"
+  echo Trong cua so Tuoi Tho, mo tab DIEU KHIEN TU XA
+  echo va bam TAO MA GHEP NOI.
 ) else (
   echo ==========================================
   echo   TUOI THO REMOTE: CHUA SAN SANG
