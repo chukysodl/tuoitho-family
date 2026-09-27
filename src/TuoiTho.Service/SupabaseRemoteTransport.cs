@@ -54,7 +54,10 @@ public sealed class SupabaseRemoteTransport : IRemoteTransport, IDisposable
         if (credential is not null)
         {
             request.Headers.Add("x-tuoi-tho-device-id", credential.DeviceId);
-            request.Headers.Add("x-tuoi-tho-device-credential", credential.BearerToken);
+            var encodedCredential = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(credential.BearerToken))
+                .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            request.Headers.Add("x-tuoi-tho-device-credential", encodedCredential);
+            request.Headers.Add("x-tuoi-tho-device-credential-encoding", "base64url");
         }
         var requestBytes = JsonSerializer.SerializeToUtf8Bytes(body, json);
         if (requestBytes.Length > MaxRequestBytes) throw new InvalidDataException("Remote request exceeded the allowed size.");
