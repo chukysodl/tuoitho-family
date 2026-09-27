@@ -3,6 +3,13 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 title Tuoi Tho - Sua Remote mot lan
 
+fltmc >nul 2>&1
+if errorlevel 1 (
+  echo Dang xin quyen Administrator...
+  powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  exit /b
+)
+
 echo ==========================================
 echo      TUOI THO - SUA REMOTE MOT LAN
 echo ==========================================
@@ -45,6 +52,14 @@ if not "%RC%"=="0" (
 )
 
 echo.
-echo [2/2] Dang khoi dong lai Tuoi Tho...
+echo [2/3] Dang migrate danh tinh thiet bi...
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$svc=Get-Service -Name 'TuoiTho.Service' -ErrorAction SilentlyContinue; if($svc){ if($svc.Status -eq 'Running'){Stop-Service 'TuoiTho.Service' -Force}; Start-Service 'TuoiTho.Service'; Start-Sleep -Seconds 8; Stop-Service 'TuoiTho.Service' -Force; exit 0 } else { exit 0 }"
+if errorlevel 1 (
+  echo [CANH BAO] Khong migrate qua Windows Service; se thu bang runtime hien tai.
+)
+
+echo.
+echo [3/3] Dang khoi dong lai Tuoi Tho...
 call "%~dp0TUOITHO-START.cmd"
 exit /b %ERRORLEVEL%
