@@ -1,3 +1,4 @@
+param([switch]$PrePair)
 $ErrorActionPreference = 'Stop'
 $configPath = Join-Path $env:ProgramData 'TuoiTho\RemoteControl\remote-control.json'
 $repo = Split-Path -Parent $PSCommandPath
@@ -91,10 +92,16 @@ Show-Check 'Supabase URL configured' $urlConfigured $urlDetail 'Rerun M5-REMOTE-
 Show-Check 'Public key configured' $keyConfigured $keyDetail 'Enter only an anon/publishable key. Never enter a secret/service-role key.'
 
 $runtime = $null
-try {
-    $response = Get-RemoteDiagnosticsFromPipe
-    if ($response.Accepted -eq $true) { $runtime = $response.RemoteDiagnostics }
-} catch { }
+for ($attempt = 1; $attempt -le 10; $attempt++) {
+    try {
+        $response = Get-RemoteDiagnosticsFromPipe
+        if ($response.Accepted -eq $true) {
+            $runtime = $response.RemoteDiagnostics
+            if ($null -ne $runtime -and $runtime.DeviceIdentityReady -eq $true) { break }
+        }
+    } catch { }
+    if ($attempt -lt 10) { Start-Sleep -Milliseconds 750 }
+}
 $deviceIdPresent = $null -ne $runtime -and $runtime.DeviceIdentityReady -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$runtime.DeviceId)
 $deviceIdentityDetail = if ($deviceIdPresent) { 'Protected device identity is initialized.' } else { 'No initialized device identity was returned by the local Service.' }
 Show-Check 'Device identity present' $deviceIdPresent $deviceIdentityDetail 'Start the Service with RemoteControl enabled; do not copy or delete its credential database.'
@@ -129,17 +136,26 @@ if ($runtime -and $runtime.LastCommandPollAtUtc) { $pollTime = [DateTimeOffset]:
 if ($runtime -and $runtime.LastStatusPublishedAtUtc) { $publishTime = [DateTimeOffset]::Parse([string]$runtime.LastStatusPublishedAtUtc).ToUniversalTime() }
 $pollReady = $null -ne $pollTime -and ($now - $pollTime).TotalSeconds -le 120
 $publishReady = $null -ne $publishTime -and ($now - $publishTime).TotalSeconds -le 120
-Show-Check 'Status publication working' $publishReady ($(if ($publishReady) { 'Recent successful publish: ' + $publishTime.ToLocalTime().ToString('HH:mm:ss') } else { 'No recent successful status publish.' })) 'Keep Service online with the network available, then wait up to 30 seconds and rerun this check.'
-Show-Check 'Command polling working' $pollReady ($(if ($pollReady) { 'Recent successful poll: ' + $pollTime.ToLocalTime().ToString('HH:mm:ss') } else { 'No recent successful command poll.' })) 'Check Service logs/network; keep the Supabase project online and rerun this check.'
 $testMode = $null -ne $runtime -and $runtime.TestMode -eq $true
-$testModeDetail = if ($null -eq $runtime -or $null -eq $runtime.TestMode) { 'Service did not return the current TestMode state.' } elseif ($testMode) { 'TestMode is enabled; remote LOCK NOW remains simulation-only.' } else { 'Real mode is enabled; M5 first acceptance requires safe TestMode.' }
-Show-Check 'TestMode' $testMode $testModeDetail 'Enable TestMode using the existing local M1/test setup before M5. This script never changes TestMode.'
+
+if ($PrePair) {
+    Write-Host '[WAIT] Status publication: starts after device pairing.' -ForegroundColor Yellow
+    Write-Host '[WAIT] Command polling: starts after device pairing.' -ForegroundColor Yellow
+    Write-Host '[WAIT] TestMode confirmation: checked again after pairing.' -ForegroundColor Yellow
+} else {
+    Show-Check 'Status publication working' $publishReady ($(if ($publishReady) { 'Recent successful publish: ' + $publishTime.ToLocalTime().ToString('HH:mm:ss') } else { 'No recent successful status publish.' })) 'Keep Service online with the network available, then wait up to 30 seconds and rerun this check.'
+    Show-Check 'Command polling working' $pollReady ($(if ($pollReady) { 'Recent successful poll: ' + $pollTime.ToLocalTime().ToString('HH:mm:ss') } else { 'No recent successful command poll.' })) 'Check Service logs/network; keep the Supabase project online and rerun this check.'
+    $testModeDetail = if ($null -eq $runtime -or $null -eq $runtime.TestMode) { 'Service did not return the current TestMode state.' } elseif ($testMode) { 'TestMode is enabled; remote LOCK NOW remains simulation-only.' } else { 'Real mode is enabled; M5 first acceptance requires safe TestMode.' }
+    Show-Check 'TestMode' $testMode $testModeDetail 'Enable TestMode using the existing local M1/test setup before M5. This script never changes TestMode.'
+}
 
 if ($failures.Count -gt 0) {
     Write-Host 'Repairs:' -ForegroundColor Yellow
     $failures | ForEach-Object { Write-Host $_ }
-    Write-Host 'M5 REMOTE CHECK: NOT READY' -ForegroundColor Red
+    if ($PrePair) { Write-Host 'M5 PRE-PAIR CHECK: NOT READY' -ForegroundColor Red }
+    else { Write-Host 'M5 REMOTE CHECK: NOT READY' -ForegroundColor Red }
     exit 1
 }
-Write-Host 'M5 REMOTE CHECK: READY' -ForegroundColor Green
+if ($PrePair) { Write-Host 'M5 PRE-PAIR CHECK: READY TO PAIR' -ForegroundColor Green }
+else { Write-Host 'M5 REMOTE CHECK: READY' -ForegroundColor Green }
 exit 0
