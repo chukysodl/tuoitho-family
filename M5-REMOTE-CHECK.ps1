@@ -103,7 +103,8 @@ for ($attempt = 1; $attempt -le 10; $attempt++) {
     if ($attempt -lt 10) { Start-Sleep -Milliseconds 750 }
 }
 $deviceIdPresent = $null -ne $runtime -and $runtime.DeviceIdentityReady -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$runtime.DeviceId)
-$deviceIdentityDetail = if ($deviceIdPresent) { 'Protected device identity is initialized.' } else { 'No initialized device identity was returned by the local Service.' }
+$runtimeError = if ($runtime -and $runtime.LastErrorCode) { [string]$runtime.LastErrorCode } else { 'none' }
+$deviceIdentityDetail = if ($deviceIdPresent) { 'Protected device identity is initialized.' } else { "No initialized device identity was returned by the local Service. LastErrorCode=$runtimeError" }
 Show-Check 'Device identity present' $deviceIdPresent $deviceIdentityDetail 'Start the Service with RemoteControl enabled; do not copy or delete its credential database.'
 
 $databaseReady = $false
