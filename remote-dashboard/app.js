@@ -146,8 +146,26 @@ $("save-config").addEventListener("click", () => {
   localStorage.setItem(configKey, JSON.stringify({ url, anonKey })); readConfig(); showSections();
 });
 $("settings-toggle").addEventListener("click", () => { $("setup").classList.toggle("hidden"); $("auth").classList.add("hidden"); });
-$("sign-in").addEventListener("click", async () => { try { saveAuth(await authRequest("token?grant_type=password", { email: $("email").value.trim(), password: $("password").value })); notify("Đăng nhập thành công."); await refreshDevices(); } catch (error) { notify(error.message); } });
-$("sign-up").addEventListener("click", async () => { try { const result = await authRequest("signup", { email: $("email").value.trim(), password: $("password").value }); if (result.access_token) { saveAuth(result); await refreshDevices(); } else notify("Kiểm tra email để xác nhận tài khoản, sau đó đăng nhập."); } catch (error) { notify(error.message); } });
+function readCredentials() {
+  const email = $("email").value.trim();
+  const password = $("password").value;
+  if (!email) { notify("Hãy nhập email phụ huynh."); $("email").focus(); return null; }
+  if (!password) { notify("Hãy nhập mật khẩu."); $("password").focus(); return null; }
+  return { email, password };
+}
+$("sign-in").addEventListener("click", async () => {
+  const credentials = readCredentials(); if (!credentials) return;
+  try { saveAuth(await authRequest("token?grant_type=password", credentials)); notify("Đăng nhập thành công."); await refreshDevices(); }
+  catch (error) { notify(error.message); }
+});
+$("sign-up").addEventListener("click", async () => {
+  const credentials = readCredentials(); if (!credentials) return;
+  try {
+    const result = await authRequest("signup", credentials);
+    if (result.access_token) { saveAuth(result); await refreshDevices(); }
+    else notify("Kiểm tra email để xác nhận tài khoản, sau đó đăng nhập.");
+  } catch (error) { notify(error.message); }
+});
 $("sign-out").addEventListener("click", () => { saveAuth(null); $("devices").replaceChildren(); clearInterval(refreshTimer); });
 $("claim-pair").addEventListener("click", async () => { try { await api("/functions/v1/parent-gateway", { action: "claim_pairing", code: $("pair-code").value.trim() }); $("pair-code").value = ""; notify("Đã ghép nối thiết bị."); await refreshDevices(); } catch (error) { notify(error.message); } });
 
