@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, apikey, content-type, x-tuoi-tho-device-id, x-tuoi-tho-device-credential", "access-control-allow-methods": "POST, OPTIONS" };
+const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, apikey, content-type, x-tuoi-tho-device-id, x-tuoi-tho-device-credential, x-tuoi-tho-device-credential-encoding", "access-control-allow-methods": "POST, OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "content-type": "application/json" } });
 const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map(x => x.toString(16).padStart(2, "0")).join("");
 const hash = async (value: string) => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
@@ -64,7 +64,15 @@ Deno.serve(async (request) => {
   }
 
   const deviceId = request.headers.get("x-tuoi-tho-device-id") ?? "";
-  const token = request.headers.get("x-tuoi-tho-device-credential") ?? "";
+  const tokenHeader = request.headers.get("x-tuoi-tho-device-credential") ?? "";
+  const tokenEncoding = request.headers.get("x-tuoi-tho-device-credential-encoding") ?? "";
+  let token = tokenHeader;
+  if (tokenEncoding === "base64url") {
+    try {
+      const base64 = tokenHeader.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(tokenHeader.length / 4) * 4, "=");
+      token = new TextDecoder("utf-8", { fatal: false }).decode(Uint8Array.from(atob(base64), c => c.charCodeAt(0)));
+    } catch { return json({ error: "DEVICE_AUTH_REQUIRED" }, 401); }
+  }
   if (!uuid(deviceId) || token.length < 32 || token.length > 256) return json({ error: "DEVICE_AUTH_REQUIRED" }, 401);
   const credentialHash = await hash(token);
   const { data: device } = await db.from("remote_devices").select("device_id,owner_id").eq("device_id", deviceId).eq("credential_sha256", credentialHash).maybeSingle();
