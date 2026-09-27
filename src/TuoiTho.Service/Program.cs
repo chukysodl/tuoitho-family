@@ -48,7 +48,9 @@ builder.Services.AddSingleton<IWebPolicyStore, SqliteWebPolicyStore>();
 builder.Services.AddSingleton<IRemoteCommandStateStore, SqliteRemoteCommandStateStore>();
 builder.Services.AddSingleton<IRemotePolicyStore, SqliteRemotePolicyStore>();
 builder.Services.AddSingleton<IDeviceCredentialProtector, WindowsDeviceCredentialProtector>();
-builder.Services.AddSingleton<RemoteControlRuntimeStatusCache>();
+var remoteRuntimeStatus = new RemoteControlRuntimeStatusCache();
+remoteRuntimeStatus.Configure(effectiveRemoteOptions);
+builder.Services.AddSingleton(remoteRuntimeStatus);
 builder.Services.AddSingleton<IOptions<RemoteControlOptions>>(Options.Create(effectiveRemoteOptions));
 builder.Services.AddSingleton<SupabaseRemoteTransport>();
 builder.Services.AddSingleton<IRemoteTransport>(services => services.GetRequiredService<SupabaseRemoteTransport>());
@@ -88,13 +90,13 @@ builder.Services.AddSingleton<SessionTimeEngine>(services =>
         options.ProfileId);
 });
 builder.Services.AddHostedService<M1Bootstrapper>();
+builder.Services.AddHostedService<RemoteControlWorker>();
 builder.Services.AddHostedService<Worker>();
 builder.Services.AddHostedService<ParentControlListener>();
 builder.Services.AddHostedService<ActivitySampleListener>();
 builder.Services.AddHostedService<AppDiscoveryService>();
 builder.Services.AddHostedService<AppEnforcementService>();
 builder.Services.AddHostedService<BrowserPolicyListener>();
-builder.Services.AddHostedService<RemoteControlWorker>();
 
 using var host = builder.Build();
 host.Run();
