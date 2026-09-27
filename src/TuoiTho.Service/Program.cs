@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.FileProviders;
 
 using TuoiTho.Core.Time;
 using TuoiTho.Core.Policy;
@@ -13,7 +14,12 @@ var builder = Host.CreateApplicationBuilder(args);
 
 // M5 setup writes public project settings to a protected, machine-wide config file.
 var remoteConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TuoiTho", "RemoteControl", "remote-control.json");
-builder.Configuration.AddJsonFile(remoteConfigPath, optional: true, reloadOnChange: false);
+var remoteConfigDirectory = Path.GetDirectoryName(remoteConfigPath)!;
+builder.Configuration.AddJsonFile(
+    new PhysicalFileProvider(remoteConfigDirectory),
+    Path.GetFileName(remoteConfigPath),
+    optional: true,
+    reloadOnChange: false);
 
 builder.Services.AddWindowsService(options =>
 {
