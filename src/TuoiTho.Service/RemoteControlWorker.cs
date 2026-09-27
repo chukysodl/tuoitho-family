@@ -36,7 +36,8 @@ public sealed class RemoteControlWorker(
         }
         try
         {
-            await identity.GetOrCreateAsync(stoppingToken);
+            var credential = await identity.GetOrCreateAsync(stoppingToken);
+            runtimeStatus.IdentityReady(credential.DeviceId);
             RemoteWorkerLog.Initialized(logger);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
