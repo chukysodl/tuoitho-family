@@ -42,6 +42,34 @@ public sealed class RemoteControlTests
     }
 
     [Fact]
+    public async Task DeviceCredentialSurvivesServiceRestartWithoutChangingBearerToken()
+    {
+        await WithDatabase(async db =>
+        {
+            var state = new SqliteRemoteCommandStateStore(db);
+            var protector = new FakeCredentialProtector();
+            var transport = new FakeRemoteTransport();
+            var clock = new FakeClock(Now, TimeZoneInfo.Utc);
+            var options = Options.Create(new RemoteControlOptions { Enabled = true, DeviceName = "Test PC" });
+
+            string firstDeviceId;
+            string firstToken;
+            using (var first = new RemoteDeviceIdentityManager(state, protector, transport, clock, options))
+            {
+                var credential = await first.GetOrCreateAsync();
+                firstDeviceId = credential.DeviceId;
+                firstToken = credential.BearerToken;
+                Assert.Matches("^[A-Za-z0-9_-]{43}$", firstToken);
+            }
+
+            using var restarted = new RemoteDeviceIdentityManager(state, protector, transport, clock, options);
+            var restored = await restarted.GetOrCreateAsync();
+            Assert.Equal(firstDeviceId, restored.DeviceId);
+            Assert.Equal(firstToken, restored.BearerToken);
+        });
+    }
+
+    [Fact]
     public async Task PairingExpiresAndCanOnlyBeConsumedOnce()
     {
         await WithDatabase(async db =>
@@ -235,7 +263,9 @@ public sealed class RemoteControlTests
 
         await transport.ReceiveCommandsAsync(new(deviceId, "secret-token"));
         Assert.Equal(deviceId, captured[1].DeviceId);
-        Assert.Equal("secret-token", captured[1].Credential);
+        var encoded = captured[1].Credential!;
+        var padded = encoded.Replace('-', '+').Replace('_', '/').PadRight((int)Math.Ceiling(encoded.Length / 4d) * 4, '=');
+        Assert.Equal("secret-token", Encoding.UTF8.GetString(Convert.FromBase64String(padded)));
         Assert.Equal("https://example.supabase.co/functions/v1/device-gateway", captured[1].Uri);
     }
 
