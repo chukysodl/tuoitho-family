@@ -65,6 +65,11 @@ if (-not $serviceProcessRunning) {
 $serviceDetail = if ($serviceProcessRunning) { 'TuoiTho.Service is running.' } else { 'No registered or exact tracked TuoiTho.Service process is running.' }
 Show-Check 'Service running' $serviceProcessRunning $serviceDetail 'Start TuoiTho.Service or run the safe M1-START.cmd for a tracked M1 test runtime.'
 
+$serviceProcesses = @(Get-CimInstance Win32_Process -Filter "Name='TuoiTho.Service.exe'" -ErrorAction SilentlyContinue)
+$runtimeCountOk = $serviceProcesses.Count -eq 1
+$runtimeCountDetail = "Found $($serviceProcesses.Count) TuoiTho.Service.exe process(es)."
+Show-Check 'Single Service runtime' $runtimeCountOk $runtimeCountDetail 'Stop duplicate TuoiTho.Service processes; M5 must run with one service runtime only.'
+
 $remote = $null
 $publicKey = $null
 $supabaseUrl = $null
@@ -104,6 +109,7 @@ for ($attempt = 1; $attempt -le 10; $attempt++) {
 }
 $deviceIdPresent = $null -ne $runtime -and $runtime.DeviceIdentityReady -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$runtime.DeviceId)
 $runtimeError = if ($runtime -and $runtime.LastErrorCode) { [string]$runtime.LastErrorCode } else { 'none' }
+Write-Host ("[INFO] Remote LastErrorCode: {0}" -f $runtimeError) -ForegroundColor Cyan
 $deviceIdentityDetail = if ($deviceIdPresent) { 'Protected device identity is initialized.' } else { "No initialized device identity was returned by the local Service. LastErrorCode=$runtimeError" }
 Show-Check 'Device identity present' $deviceIdPresent $deviceIdentityDetail 'Start the Service with RemoteControl enabled; do not copy or delete its credential database.'
 
