@@ -1,8 +1,8 @@
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.FileProviders;
 
 using TuoiTho.Core.Time;
 using TuoiTho.Core.Policy;
@@ -14,12 +14,11 @@ var builder = Host.CreateApplicationBuilder(args);
 
 // M5 setup writes public project settings to a protected, machine-wide config file.
 var remoteConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TuoiTho", "RemoteControl", "remote-control.json");
-var remoteConfigDirectory = Path.GetDirectoryName(remoteConfigPath)!;
-builder.Configuration.AddJsonFile(
-    new PhysicalFileProvider(remoteConfigDirectory),
-    Path.GetFileName(remoteConfigPath),
-    optional: true,
-    reloadOnChange: false);
+var remoteMachineSettings = LoadMachineSettings(remoteConfigPath);
+if (remoteMachineSettings.Count > 0)
+{
+    builder.Configuration.AddInMemoryCollection(remoteMachineSettings);
+}
 
 builder.Services.AddWindowsService(options =>
 {
@@ -106,4 +105,50 @@ static string GetDatabasePath()
         ? AppContext.BaseDirectory
         : commonApplicationData;
     return Path.Combine(baseDirectory, "TuoiTho", "tuoitho.db");
+}
+
+
+static Dictionary<string, string?> LoadMachineSettings(string path)
+{
+    var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+    if (!File.Exists(path)) return values;
+
+    using var document = JsonDocument.Parse(File.ReadAllText(path));
+    Flatten(document.RootElement, string.Empty, values);
+    return values;
+}
+
+static void Flatten(JsonElement element, string prefix, IDictionary<string, string?> values)
+{
+    switch (element.ValueKind)
+    {
+        case JsonValueKind.Object:
+            foreach (var property in element.EnumerateObject())
+            {
+                var key = string.IsNullOrEmpty(prefix) ? property.Name : prefix + ":" + property.Name;
+                Flatten(property.Value, key, values);
+            }
+            break;
+        case JsonValueKind.Array:
+            var index = 0;
+            foreach (var item in element.EnumerateArray())
+            {
+                Flatten(item, prefix + ":" + index.ToString(System.Globalization.CultureInfo.InvariantCulture), values);
+                index++;
+            }
+            break;
+        case JsonValueKind.String:
+            values[prefix] = element.GetString();
+            break;
+        case JsonValueKind.Number:
+            values[prefix] = element.GetRawText();
+            break;
+        case JsonValueKind.True:
+        case JsonValueKind.False:
+            values[prefix] = element.GetBoolean().ToString(System.Globalization.CultureInfo.InvariantCulture);
+            break;
+        case JsonValueKind.Null:
+            values[prefix] = null;
+            break;
+    }
 }
