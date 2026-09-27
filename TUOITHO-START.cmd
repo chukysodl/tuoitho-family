@@ -3,6 +3,14 @@ setlocal
 cd /d "%~dp0"
 title Tuoi Tho - Khoi dong mot cham
 
+rem Self-elevate once so stale TuoiTho processes can be stopped safely after reboot/power loss.
+fltmc >nul 2>&1
+if errorlevel 1 (
+  echo Dang xin quyen Administrator...
+  powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+  exit /b
+)
+
 echo ==========================================
 echo      TUOI THO - KHOI DONG MOT CHAM
 echo ==========================================
@@ -15,6 +23,16 @@ if not exist "C:\ProgramData\TuoiTho\RemoteControl\remote-control.json" (
   pause
   exit /b 2
 )
+
+echo [0/3] Dang don runtime cu...
+call "%~dp0scripts\M1-STOP.cmd"
+if errorlevel 1 (
+  echo.
+  echo [LOI] Khong dung duoc runtime Tuoi Tho cu.
+  pause
+  exit /b 2
+)
+timeout /t 2 /nobreak >nul
 
 echo [1/3] Dang khoi dong Tuoi Tho...
 call "%~dp0scripts\M1-START.cmd"
