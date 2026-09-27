@@ -74,9 +74,19 @@ function makeDeviceCard(device) {
   const name = document.createElement("h2"); name.textContent = device.device_name || "Thiết bị";
   const pill = document.createElement("span"); pill.className = `pill ${online ? "online" : "offline"}`; pill.textContent = online ? "● ONLINE" : "● OFFLINE";
   title.append(name, pill); card.append(title);
-  const badge = document.createElement("span"); badge.className = `pill ${status.testMode ? "test" : "real"}`;
-  badge.textContent = status.testMode ? "CHẾ ĐỘ THỬ NGHIỆM – KHÔNG KHÓA WINDOWS THẬT" : "CHẾ ĐỘ THỰC – LỆNH KHÓA CÓ THỂ TÁC ĐỘNG THẬT";
-  badge.style.background = status.testMode ? "#fff4d6" : "#ffe5e5"; badge.style.color = status.testMode ? "#795b0b" : "#9a2020";
+  const hasRuntimeStatus = device.status && typeof status.testMode === "boolean" && !!status.policyState;
+  const badge = document.createElement("span");
+  if (!hasRuntimeStatus) {
+    badge.className = "pill offline";
+    badge.textContent = "ĐANG CHỜ MÁY GỬI TRẠNG THÁI – CHƯA GỬI LỆNH";
+    badge.style.background = "#eef2f7";
+    badge.style.color = "#44546a";
+  } else {
+    badge.className = `pill ${status.testMode ? "test" : "real"}`;
+    badge.textContent = status.testMode ? "CHẾ ĐỘ THỬ NGHIỆM – KHÔNG KHÓA WINDOWS THẬT" : "CHẾ ĐỘ THỰC – LỆNH KHÓA CÓ THỂ TÁC ĐỘNG THẬT";
+    badge.style.background = status.testMode ? "#fff4d6" : "#ffe5e5";
+    badge.style.color = status.testMode ? "#795b0b" : "#9a2020";
+  }
   badge.style.display = "inline-block"; badge.style.marginTop = "10px"; card.append(badge);
   const metrics = document.createElement("div"); metrics.className = "metrics";
   metric(metrics, "Đã dùng hôm nay", formatTime(status.usedSecondsToday));
@@ -85,11 +95,12 @@ function makeDeviceCard(device) {
   metric(metrics, "Lần kết nối", Number.isFinite(lastSeen) ? new Date(lastSeen).toLocaleTimeString("vi-VN") : "—");
   card.append(metrics);
   const actions = document.createElement("div"); actions.className = "actions";
-  action(actions, status.testMode ? "KHÓA NGAY · MÔ PHỎNG" : "KHÓA NGAY", "lock", () => sendCommand(device.device_id, "lockNow", {}, card));
-  action(actions, "MỞ KHÓA", "unlock", () => sendCommand(device.device_id, "unlock", {}, card));
-  action(actions, "+15 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 15 }, card));
-  action(actions, "+30 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 30 }, card));
-  action(actions, "+60 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 60 }, card));
+  const commandReady = online && hasRuntimeStatus;
+  action(actions, hasRuntimeStatus && status.testMode ? "KHÓA NGAY · MÔ PHỎNG" : "KHÓA NGAY", "lock", () => sendCommand(device.device_id, "lockNow", {}, card), !commandReady);
+  action(actions, "MỞ KHÓA", "unlock", () => sendCommand(device.device_id, "unlock", {}, card), !commandReady);
+  action(actions, "+15 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 15 }, card), !commandReady);
+  action(actions, "+30 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 30 }, card), !commandReady);
+  action(actions, "+60 PHÚT", "grant", () => sendCommand(device.device_id, "grantTime", { minutes: 60 }, card), !commandReady);
   card.append(actions);
   const note = document.createElement("p"); note.className = "caption"; note.textContent = "Mở khóa chỉ bỏ Parent Lock; lịch và quota vẫn có hiệu lực. Lệnh hết hạn sau 15 phút nếu máy ngoại tuyến."; card.append(note);
 
@@ -113,7 +124,7 @@ function makeDeviceCard(device) {
   return card;
 }
 function metric(parent, title, value) { const box = document.createElement("div"); box.className = "metric"; const label = document.createElement("span"); label.textContent = title; const content = document.createElement("strong"); content.textContent = value; box.append(label, content); parent.append(box); }
-function action(parent, text, cls, handler) { const button = document.createElement("button"); button.className = cls; button.textContent = text; button.addEventListener("click", async () => { button.disabled = true; try { await handler(); } finally { button.disabled = false; } }); parent.append(button); }
+function action(parent, text, cls, handler, disabled = false) { const button = document.createElement("button"); button.className = cls; button.textContent = text; button.disabled = disabled; button.addEventListener("click", async () => { button.disabled = true; try { await handler(); } finally { button.disabled = false; } }); parent.append(button); }
 function formatTime(value) { const seconds = Math.max(0, Math.floor(Number(value) || 0)); return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; }
 function viState(state) { return ({ ALLOWED: "ĐƯỢC PHÉP", OUTSIDE_SCHEDULE: "NGOÀI LỊCH", QUOTA_EXHAUSTED: "HẾT THỜI GIAN", PARENT_LOCK: "KHÓA BỞI PHỤ HUYNH", OVERRIDE: "OVERRIDE" })[state] || "CHƯA RÕ"; }
 async function sendCommand(deviceId, kind, payload, card) {
