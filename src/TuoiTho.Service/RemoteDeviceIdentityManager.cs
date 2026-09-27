@@ -48,13 +48,29 @@ public sealed class RemoteDeviceIdentityManager(
                 var tokenBytes = protector.Unprotect(stored.ProtectedCredential);
                 try
                 {
-                    // New records persist the ASCII Base64URL token itself. Legacy records contain
-                    // the original 32 random bytes; preserve their historical UTF-8 interpretation
-                    // so already-paired devices keep the same server-side credential hash.
-                    var restored = tokenBytes.Length == 43 && tokenBytes.All(static value =>
-                        value is >= (byte)'0' and <= (byte)'9' or >= (byte)'A' and <= (byte)'Z' or >= (byte)'a' and <= (byte)'z' or (byte)'-' or (byte)'_')
+                    // New records persist the ASCII Base64URL token itself. Legacy records stored
+                    // the original 32 random bytes, while the server hash was computed from the
+                    // Base64URL representation. Reconstruct that original token exactly.
+                    var asciiToken = tokenBytes.Length == 43 && tokenBytes.All(static value =>
+                        value is >= (byte)'0' and <= (byte)'9' or >= (byte)'A' and <= (byte)'Z' or >= (byte)'a' and <= (byte)'z' or (byte)'-' or (byte)'_');
+                    var restored = asciiToken
                         ? Encoding.ASCII.GetString(tokenBytes)
-                        : Encoding.UTF8.GetString(tokenBytes);
+                        : Convert.ToBase64String(tokenBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+                    // Re-protect the canonical ASCII token using the current protector. This migrates
+                    // legacy per-user DPAPI records to the machine-scoped format after one successful
+                    // read under the original Windows security context.
+                    var canonicalBytes = Encoding.ASCII.GetBytes(restored);
+                    var reprotected = protector.Protect(canonicalBytes);
+                    try
+                    {
+                        await state.SaveDeviceAsync(new(stored.DeviceId, stored.DeviceName, reprotected, stored.CreatedAtUtc), cancellationToken);
+                    }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(canonicalBytes);
+                        CryptographicOperations.ZeroMemory(reprotected);
+                    }
                     cached = new(stored.DeviceId, restored);
                 }
                 finally { CryptographicOperations.ZeroMemory(tokenBytes); }
