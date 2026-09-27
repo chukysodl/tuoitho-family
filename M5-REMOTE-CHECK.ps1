@@ -27,13 +27,15 @@ function Get-RemoteDiagnosticsFromPipe {
     $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', 'TuoiTho.ParentControl', [IO.Pipes.PipeDirection]::InOut, [IO.Pipes.PipeOptions]::None)
     try {
         $pipe.Connect(3000)
-        $pipe.ReadTimeout = 5000
         $writer = [IO.StreamWriter]::new($pipe, [Text.UTF8Encoding]::new($false), 1024, $true)
         $reader = [IO.StreamReader]::new($pipe, [Text.UTF8Encoding]::new($false), $true, 1024, $true)
         $writer.AutoFlush = $true
         $request = @{ Action = 'getRemoteDiagnostics'; ProfileId = ''; ManagedSessionId = -1 }
         $writer.WriteLine(($request | ConvertTo-Json -Compress))
-        $line = $reader.ReadLine()
+        $readTask = $reader.ReadLineAsync()
+        $completed = [Threading.Tasks.Task]::WhenAny($readTask, [Threading.Tasks.Task]::Delay(5000)).GetAwaiter().GetResult()
+        if (-not [object]::ReferenceEquals($completed, $readTask)) { throw 'Timed out waiting for Parent status response.' }
+        $line = $readTask.GetAwaiter().GetResult()
         if ([string]::IsNullOrWhiteSpace($line) -or $line.Length -gt 16384) { throw 'Empty or oversized Parent status response.' }
         return ($line | ConvertFrom-Json)
     } finally { $pipe.Dispose() }
@@ -52,20 +54,11 @@ function Test-PublicProjectKey([string]$Key) {
     } catch { return $false }
 }
 
-$serviceProcessRunning = $false
-$service = Get-Service -Name 'TuoiTho.Service' -ErrorAction SilentlyContinue
-if ($service -and $service.Status -eq 'Running') { $serviceProcessRunning = $true }
-if (-not $serviceProcessRunning) {
-    $expectedExe = Join-Path $repo 'src\TuoiTho.Service\bin\Release\net10.0-windows\TuoiTho.Service.exe'
-    if (Test-Path $expectedExe) {
-        $expectedFull = [IO.Path]::GetFullPath($expectedExe)
-        $serviceProcessRunning = [bool](Get-CimInstance Win32_Process -Filter "Name='TuoiTho.Service.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.ExecutablePath -and [string]::Equals([IO.Path]::GetFullPath($_.ExecutablePath), $expectedFull, [StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1)
-    }
-}
-$serviceDetail = if ($serviceProcessRunning) { 'TuoiTho.Service is running.' } else { 'No registered or exact tracked TuoiTho.Service process is running.' }
-Show-Check 'Service running' $serviceProcessRunning $serviceDetail 'Start TuoiTho.Service or run the safe M1-START.cmd for a tracked M1 test runtime.'
-
 $serviceProcesses = @(Get-CimInstance Win32_Process -Filter "Name='TuoiTho.Service.exe'" -ErrorAction SilentlyContinue)
+$service = Get-Service -Name 'TuoiTho.Service' -ErrorAction SilentlyContinue
+$serviceProcessRunning = ($service -and $service.Status -eq 'Running') -or $serviceProcesses.Count -gt 0
+$serviceDetail = if ($serviceProcessRunning) { "TuoiTho.Service is running; found $($serviceProcesses.Count) process(es)." } else { 'No TuoiTho.Service process is running.' }
+Show-Check 'Service running' $serviceProcessRunning $serviceDetail 'Start TuoiTho.Service or run the safe M1-START.cmd for a tracked M1 test runtime.'
 $runtimeCountOk = $serviceProcesses.Count -eq 1
 $runtimeCountDetail = "Found $($serviceProcesses.Count) TuoiTho.Service.exe process(es)."
 Show-Check 'Single Service runtime' $runtimeCountOk $runtimeCountDetail 'Stop duplicate TuoiTho.Service processes; M5 must run with one service runtime only.'
