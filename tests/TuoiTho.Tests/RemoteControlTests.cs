@@ -42,6 +42,32 @@ public sealed class RemoteControlTests
     }
 
     [Fact]
+    public async Task LegacyRawDeviceCredentialRestoresOriginalBase64UrlToken()
+    {
+        await WithDatabase(async db =>
+        {
+            var raw = Enumerable.Range(0, 32).Select(i => (byte)(i + 1)).ToArray();
+            var expected = Convert.ToBase64String(raw).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+            var state = new SqliteRemoteCommandStateStore(db);
+            var stored = new RemoteStoredDevice(Guid.NewGuid().ToString(), "Legacy PC", raw.ToArray(), Now);
+            await state.SaveDeviceAsync(stored);
+
+            using var manager = new RemoteDeviceIdentityManager(
+                state,
+                new FakeCredentialProtector(),
+                new FakeRemoteTransport(),
+                new FakeClock(Now, TimeZoneInfo.Utc),
+                Options.Create(new RemoteControlOptions { Enabled = true, DeviceName = "Legacy PC" }));
+
+            var restored = await manager.GetOrCreateAsync();
+            Assert.Equal(expected, restored.BearerToken);
+            var migrated = await state.LoadDeviceAsync();
+            Assert.NotNull(migrated);
+            Assert.Equal(Encoding.ASCII.GetBytes(expected), migrated!.ProtectedCredential);
+        });
+    }
+
+    [Fact]
     public async Task DeviceCredentialSurvivesServiceRestartWithoutChangingBearerToken()
     {
         await WithDatabase(async db =>
