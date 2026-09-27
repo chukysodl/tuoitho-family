@@ -25,6 +25,14 @@ if not exist "C:\ProgramData\TuoiTho\RemoteControl\remote-control.json" (
 )
 
 echo [0/3] Dang don runtime cu...
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$svc=Get-CimInstance Win32_Service -Filter \"Name='TuoiTho.Service'\" -ErrorAction SilentlyContinue; if($svc -and $svc.State -eq 'Running'){ if($svc.PathName -match '(?i)TuoiTho\.Service\.exe'){ Stop-Service -Name 'TuoiTho.Service' -Force -ErrorAction Stop; (Get-Service 'TuoiTho.Service').WaitForStatus('Stopped',[TimeSpan]::FromSeconds(20)) } else { throw 'Registered TuoiTho.Service points to an unexpected executable.' } }"
+if errorlevel 1 (
+  echo.
+  echo [LOI] Khong dung duoc Windows Service Tuoi Tho cu.
+  pause
+  exit /b 2
+)
 call "%~dp0scripts\M1-STOP.cmd"
 if errorlevel 1 (
   echo.
