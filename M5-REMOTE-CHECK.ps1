@@ -107,6 +107,10 @@ for ($attempt = 1; $attempt -le 10; $attempt++) {
     } catch { }
     if ($attempt -lt 10) { Start-Sleep -Milliseconds 750 }
 }
+$runtimeEnabled = $null -ne $runtime -and $runtime.Enabled -eq $true
+$runtimeConfigValid = $null -ne $runtime -and $runtime.ConfigurationValid -eq $true
+Show-Check 'Service Remote Enabled' $runtimeEnabled ($(if ($runtimeEnabled) { 'Service loaded RemoteControl.Enabled=true.' } else { 'Service did not load RemoteControl.Enabled=true.' })) 'The Service did not load the protected remote configuration.'
+Show-Check 'Service Remote Config' $runtimeConfigValid ($(if ($runtimeConfigValid) { 'Service accepted the Supabase URL and public key.' } else { 'Service runtime configuration is not valid.' })) 'Verify the Service loads C:\ProgramData\TuoiTho\RemoteControl\remote-control.json.'
 $deviceIdPresent = $null -ne $runtime -and $runtime.DeviceIdentityReady -eq $true -and -not [string]::IsNullOrWhiteSpace([string]$runtime.DeviceId)
 $runtimeError = if ($runtime -and $runtime.LastErrorCode) { [string]$runtime.LastErrorCode } else { 'none' }
 Write-Host ("[INFO] Remote LastErrorCode: {0}" -f $runtimeError) -ForegroundColor Cyan
