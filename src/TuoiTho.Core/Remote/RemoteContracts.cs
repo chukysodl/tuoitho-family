@@ -66,7 +66,11 @@ public sealed record RemoteControlRuntimeDiagnostics(
     string? LastErrorCode,
     string? ProfileId,
     int? ManagedSessionId,
-    bool? TestMode);
+    bool? TestMode,
+    string? RuntimeExecutablePath = null,
+    string? RuntimeBuildVersion = null,
+    string? RemoteConfigPath = null,
+    bool? RemoteConfigFileExists = null);
 
 public sealed record RemotePolicySnapshot(
     string DeviceId,
