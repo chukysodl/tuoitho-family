@@ -73,21 +73,22 @@ public sealed class CheckpointCControlAndEnforcementTests
         Assert.Equal("NOT_TARGETED", (await enforcer.EnforceAsync(policy, 8, denial)).Outcome);
         Assert.Equal("REAL_SOFT_LOCK", (await enforcer.EnforceAsync(policy, 7, denial)).Outcome);
         Assert.Equal("ALREADY_ENFORCED", (await enforcer.EnforceAsync(policy, 7, denial)).Outcome);
-        Assert.Equal([7], native.Disconnected);
+        Assert.Empty(native.Disconnected);
     }
 
     [Fact]
-    public async Task TestModeSimulatesAndParentOrAdminSessionsAreNeverDisconnected()
+    public async Task TestModeSimulatesAndRealModeUsesOverlayWithoutDisconnectingWindows()
     {
         var native = new FakeNativeApi { IdentityMatches = true };
         var enforcer = new SafeChildSessionEnforcer(native, NullLogger<SafeChildSessionEnforcer>.Instance);
         var denial = new PolicyDecision(false, AccessDenyReason.ParentLock, 0, []);
         Assert.Equal("SIMULATED_LOCK", (await enforcer.EnforceAsync(Policy() with { TestMode = true }, 7, denial)).Outcome);
         Assert.Empty(native.Disconnected);
-        var foreignIdentity = new FakeNativeApi { IdentityMatches = false };
-        var real = new SafeChildSessionEnforcer(foreignIdentity, NullLogger<SafeChildSessionEnforcer>.Instance);
-        Assert.Equal("SESSION_IDENTITY_REJECTED", (await real.EnforceAsync(Policy() with { TestMode = false }, 7, denial)).Outcome);
-        Assert.Empty(foreignIdentity.Disconnected);
+
+        var realNative = new FakeNativeApi { IdentityMatches = false };
+        var real = new SafeChildSessionEnforcer(realNative, NullLogger<SafeChildSessionEnforcer>.Instance);
+        Assert.Equal("REAL_SOFT_LOCK", (await real.EnforceAsync(Policy() with { TestMode = false }, 7, denial)).Outcome);
+        Assert.Empty(realNative.Disconnected);
     }
 
     [Fact]
@@ -114,10 +115,10 @@ public sealed class CheckpointCControlAndEnforcementTests
         var enforcer = new SafeChildSessionEnforcer(native, NullLogger<SafeChildSessionEnforcer>.Instance);
         var policy = Policy() with { TestMode = false };
         var denied = new PolicyDecision(false, AccessDenyReason.QuotaExhausted, 0, []);
-        await enforcer.EnforceAsync(policy, 7, denied);
-        await enforcer.EnforceAsync(policy, 7, new PolicyDecision(true, AccessDenyReason.None, 10, []));
-        await enforcer.EnforceAsync(policy, 7, denied);
-        Assert.Equal([7, 7], native.Disconnected);
+        Assert.Equal("REAL_SOFT_LOCK", (await enforcer.EnforceAsync(policy, 7, denied)).Outcome);
+        Assert.Equal("ALLOWED", (await enforcer.EnforceAsync(policy, 7, new PolicyDecision(true, AccessDenyReason.None, 10, []))).Outcome);
+        Assert.Equal("REAL_SOFT_LOCK", (await enforcer.EnforceAsync(policy, 7, denied)).Outcome);
+        Assert.Empty(native.Disconnected);
     }
     private static DeviceTimePolicy Policy() => new("child", 7, 30, [new AllowedUsageWindow(DayOfWeek.Monday, new TimeOnly(9, 0), new TimeOnly(10, 0))], DeviceTimePolicy.DefaultWarnings, false, false, true) { ManagedUserSid = "S-1-5-21-child" };
 
