@@ -8,7 +8,6 @@ if (Test-Path $modeFile) {
     try { $realMode = ((Get-Content -LiteralPath $modeFile -Raw).Trim().ToUpperInvariant() -eq 'REAL') } catch { $realMode = $false }
 }
 $testMode = -not $realMode
-$runtimeConfigPath = Join-Path $env:ProgramData 'TuoiTho\runtime-control.json'
 
 # Only this state file may identify old M1 components; M1-STOP verifies every executable path.
 & (Join-Path $PSScriptRoot 'M1-STOP.ps1') -Quiet
@@ -34,31 +33,6 @@ $serviceExe = Join-Path $root 'src/TuoiTho.Service/bin/Release/net10.0-windows/T
 $agentExe = Join-Path $root 'src/TuoiTho.SessionAgent/bin/Release/net10.0-windows/TuoiTho.SessionAgent.exe'
 $parentExe = Join-Path $root 'src/TuoiTho.Parent/bin/Release/net10.0-windows/TuoiTho.Parent.exe'
 $browserHostExe = Join-Path $root 'src/TuoiTho.BrowserHost/bin/Release/net10.0-windows/TuoiTho.BrowserHost.exe'
-$env:SessionAgent__ParentExecutablePath = $parentExe
-
-$runtimeControl = [ordered]@{
-    TimeTracking = [ordered]@{
-        ProfileId = 'm1-child'
-        SessionId = $session
-        IdleThresholdMinutes = 1
-        IdlePollIntervalSeconds = 5
-    }
-    ParentControl = [ordered]@{
-        AllowedParentSids = @($sid)
-    }
-    M1Bootstrap = [ordered]@{
-        Enabled = $true
-        ProfileId = 'm1-child'
-        ManagedSessionId = $session
-        ManagedUserSid = $sid
-        QuotaMinutes = 3
-        TestMode = $testMode
-    }
-}
-$runtimeConfigDir = Split-Path -Parent $runtimeConfigPath
-New-Item -ItemType Directory -Path $runtimeConfigDir -Force | Out-Null
-$runtimeControl | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $runtimeConfigPath -Encoding UTF8
-
 $env:SessionAgent__ParentExecutablePath = $parentExe
 foreach ($exe in @($serviceExe, $agentExe, $parentExe, $browserHostExe)) {
     if (-not (Test-Path $exe)) { Write-Output "M1 START FAIL: Missing built executable: $exe"; exit 2 }
@@ -92,69 +66,16 @@ function Test-M1BrowserPolicyReady {
         return @{ Ready = $false; Detail = (($output | Out-String).Trim()) }
     } catch { return @{ Ready = $false; Detail = $_.Exception.Message } }
 }
-# Background components stay hidden. In REAL mode the enforcement engine must run
-# as a Windows Service under LocalSystem so WTS session identity verification and
-# WTSDisconnectSession can safely operate on the managed child session.
-$service = $null
-$servicePid = 0
-if ($realMode) {
-    $serviceName = 'TuoiTho.Service'
-    $existingService = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-    if ($existingService -and $existingService.Status -eq 'Running') {
-        Stop-Service -Name $serviceName -Force
-        $existingService.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(20))
-    }
-
-    if ($null -eq $existingService) {
-        $createOutput = & sc.exe create $serviceName binPath= "`"$serviceExe`"" start= auto obj= LocalSystem 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Output ('M1 START FAIL: Could not create LocalSystem service. ' + ($createOutput | Out-String).Trim())
-            exit 5
-        }
-    } else {
-        $configOutput = & sc.exe config $serviceName binPath= "`"$serviceExe`"" start= auto obj= LocalSystem 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Output ('M1 START FAIL: Could not configure LocalSystem service. ' + ($configOutput | Out-String).Trim())
-            exit 5
-        }
-    }
-
-    & sc.exe start $serviceName | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Output 'M1 START FAIL: Could not start TuoiTho.Service as LocalSystem.'
-        exit 5
-    }
-
-    for ($attempt = 1; $attempt -le 20; $attempt++) {
-        Start-Sleep -Milliseconds 250
-        $svcInfo = Get-CimInstance Win32_Service -Filter "Name='TuoiTho.Service'" -ErrorAction SilentlyContinue
-        if ($svcInfo -and $svcInfo.State -eq 'Running' -and [int]$svcInfo.ProcessId -gt 0) {
-            $servicePid = [int]$svcInfo.ProcessId
-            break
-        }
-    }
-    if ($servicePid -le 0) {
-        Write-Output 'M1 START FAIL: LocalSystem service did not reach Running state.'
-        exit 5
-    }
-    Write-Output ("M1 START: ServiceHost=LocalSystem PID={0}" -f $servicePid)
-} else {
-    $service = Start-Process -FilePath $serviceExe -WorkingDirectory (Split-Path $serviceExe) -WindowStyle Hidden -PassThru
-    $servicePid = $service.Id
-}
-
+# Background components stay hidden. Parent is launched only after the fresh Service proves protocol readiness.
+$service = Start-Process -FilePath $serviceExe -WorkingDirectory (Split-Path $serviceExe) -WindowStyle Hidden -PassThru
 $ready = $false
 for ($attempt = 1; $attempt -le 20; $attempt++) {
-    if (-not $realMode -and $service.HasExited) { break }
+    if ($service.HasExited) { break }
     if (Test-M1ParentServiceReady $session) { $ready = $true; break }
     Start-Sleep -Milliseconds 500
 }
 if (-not $ready) {
-    if ($realMode) {
-        Stop-Service -Name 'TuoiTho.Service' -Force -ErrorAction SilentlyContinue
-    } elseif ($null -ne $service -and -not $service.HasExited) {
-        Stop-Process -Id $service.Id
-    }
+    if (-not $service.HasExited) { Stop-Process -Id $service.Id }
     Write-Output 'M1 START FAIL: Parent Service did not become ready with the current protocol.'
     exit 3
 }
@@ -164,15 +85,14 @@ $browserConfig = Join-Path $env:ProgramData 'TuoiTho\browser-control.json'
 if (Test-Path $browserConfig) {
     $browserReady = $false; $browserDetail = ''
     for ($attempt = 1; $attempt -le 12; $attempt++) {
-        if (-not $realMode -and $service.HasExited) { break }
+        if ($service.HasExited) { break }
         $probe = Test-M1BrowserPolicyReady $browserHostExe
         $browserDetail = $probe.Detail
         if ($probe.Ready) { $browserReady = $true; break }
         Start-Sleep -Milliseconds 500
     }
     if (-not $browserReady) {
-        if ($realMode) { Stop-Service -Name 'TuoiTho.Service' -Force -ErrorAction SilentlyContinue }
-        elseif ($null -ne $service -and -not $service.HasExited) { Stop-Process -Id $service.Id }
+        if (-not $service.HasExited) { Stop-Process -Id $service.Id }
         Write-Output ("M1 START FAIL: BrowserPolicy: FAIL - " + $browserDetail)
         exit 4
     }
@@ -184,7 +104,7 @@ $parent = Start-Process -FilePath $parentExe -WorkingDirectory (Split-Path $pare
 @{
     Version = 2
     Components = @(
-        @{ Name = 'Service'; Pid = $servicePid; ExecutablePath = $serviceExe },
+        @{ Name = 'Service'; Pid = $service.Id; ExecutablePath = $serviceExe },
         @{ Name = 'SessionAgent'; Pid = $agent.Id; ExecutablePath = $agentExe },
         @{ Name = 'Parent'; Pid = $parent.Id; ExecutablePath = $parentExe }
     )
