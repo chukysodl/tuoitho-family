@@ -116,6 +116,8 @@ public sealed class WinFormsChildSoftLockView : IChildSoftLockView
 
 public sealed class ChildSoftLockForm : Form
 {
+    private readonly Label headline = CenteredLabel("", 26, FontStyle.Bold);
+    private readonly Label message = CenteredLabel("", 16);
     private readonly Label profile = CenteredLabel(14, Color.White);
     private readonly Label reason = CenteredLabel(16, Color.Gold, FontStyle.Bold);
     private readonly Label remaining = CenteredLabel(28, Color.White, FontStyle.Bold);
@@ -123,6 +125,7 @@ public sealed class ChildSoftLockForm : Form
     private readonly Button openParent = new() { Text = "Mở điều khiển phụ huynh", AutoSize = true, MinimumSize = new Size(270, 46), Margin = new Padding(6) };
     private readonly Button emergencyExit = new() { Text = "Thoát màn hình thử nghiệm", AutoSize = true, MinimumSize = new Size(270, 46), Margin = new Padding(6) };
     private bool allowClose;
+    private bool realLockActive;
 
     public ChildSoftLockForm(Action emergencyExitRequested, Action parentControlRequested)
     {
@@ -149,9 +152,9 @@ public sealed class ChildSoftLockForm : Form
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 12));
-        panel.Controls.Add(CenteredLabel("HẾT THỜI GIAN SỬ DỤNG", 26, FontStyle.Bold), 0, 1);
-        panel.Controls.Add(CenteredLabel("Thời gian sử dụng máy hôm nay đã hết.", 16), 0, 2);
-        panel.Controls.Add(CenteredLabel("Vui lòng nhờ phụ huynh cộng thêm thời gian.", 14), 0, 3);
+        panel.Controls.Add(headline, 0, 1);
+        panel.Controls.Add(message, 0, 2);
+        panel.Controls.Add(CenteredLabel("Vui lòng nhờ phụ huynh mở khóa hoặc cộng thêm thời gian.", 14), 0, 3);
         panel.Controls.Add(profile, 0, 4);
         panel.Controls.Add(reason, 0, 5);
         panel.Controls.Add(remaining, 0, 6);
@@ -188,6 +191,9 @@ public sealed class ChildSoftLockForm : Form
 
     public void Apply(ChildSoftLockState state)
     {
+        realLockActive = state.IsRealLock;
+        headline.Text = state.Reason == AccessDenyReason.ParentLock ? "MÁY ĐÃ ĐƯỢC PHỤ HUYNH KHÓA" : "HẾT THỜI GIAN SỬ DỤNG";
+        message.Text = state.Reason == AccessDenyReason.ParentLock ? "Thiết bị đang tạm khóa theo yêu cầu của phụ huynh." : "Thời gian sử dụng máy hôm nay đã hết.";
         profile.Text = $"Hồ sơ: {state.ProfileId}";
         reason.Text = $"Lý do: {PolicyReasonText.ToDisplayText(state.Reason)}";
         remaining.Text = $"Thời gian còn lại: {state.Remaining}";
@@ -225,7 +231,14 @@ public sealed class ChildSoftLockForm : Form
         if (!allowClose)
         {
             e.Cancel = true;
-            Hide();
+            if (realLockActive)
+            {
+                BeginInvoke(ShowBlocker);
+            }
+            else
+            {
+                Hide();
+            }
             return;
         }
 
