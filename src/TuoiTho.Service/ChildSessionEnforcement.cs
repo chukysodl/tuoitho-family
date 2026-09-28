@@ -15,9 +15,10 @@ public sealed class SafeChildSessionEnforcer(IManagedSessionNativeApi nativeApi,
   if(observedSessionId!=policy.ManagedSessionId)return new(false,false,"NOT_TARGETED");
   var key=prefix+decision.Reason;if(enforced.Contains(key))return new(true,false,"ALREADY_ENFORCED");
   if(policy.TestMode){enforced.Add(key);SessionEnforcementLog.Simulated(logger,policy.ProfileId,policy.ManagedSessionId,decision.Reason);return new(true,false,"SIMULATED_LOCK");}
-  if(string.IsNullOrWhiteSpace(policy.ManagedUserSid)||!await nativeApi.IsManagedChildSessionAsync(policy.ManagedSessionId,policy.ManagedUserSid,cancellationToken)){SessionEnforcementLog.Rejected(logger,policy.ProfileId,policy.ManagedSessionId);return new(false,false,"SESSION_IDENTITY_REJECTED");}
   // Real mode is enforced inside the interactive child session by SessionAgent's
-  // full-screen TuoiTho blocker. The Service must never log off or disconnect Windows.
+  // full-screen TuoiTho blocker. DevicePolicyCoordinator has already published the
+  // decision to the managed session pipe, which is profile/session scoped. Never
+  // disconnect or log off Windows here.
   enforced.Add(key);SessionEnforcementLog.Real(logger,policy.ProfileId,policy.ManagedSessionId,decision.Reason);return new(true,true,"REAL_SOFT_LOCK");
  }
 }
