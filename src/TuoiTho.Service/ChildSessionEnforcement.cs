@@ -10,6 +10,7 @@ public sealed class SafeChildSessionEnforcer(IManagedSessionNativeApi nativeApi,
  private readonly HashSet<string> enforced=[];
  public async Task<SessionEnforcementResult> EnforceAsync(DeviceTimePolicy policy,int observedSessionId,PolicyDecision decision,CancellationToken cancellationToken=default)
  {
+  _ = nativeApi; // kept for constructor/API compatibility; real lock is SessionAgent UI, not WTS.
   var prefix=$"{policy.ProfileId}:{policy.ManagedSessionId}:";
   if(decision.Allowed){enforced.RemoveWhere(key=>key.StartsWith(prefix,StringComparison.Ordinal));return new(false,false,"ALLOWED");}
   if(observedSessionId!=policy.ManagedSessionId)return new(false,false,"NOT_TARGETED");
