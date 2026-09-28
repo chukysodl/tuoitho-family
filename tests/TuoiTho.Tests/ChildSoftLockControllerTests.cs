@@ -105,6 +105,7 @@ public sealed class ChildSoftLockControllerTests
         view.RequestEmergencyExit();
 
         Assert.False(view.Shown[0].ShowM1EmergencyExit);
+        Assert.True(view.Shown[0].IsRealLock);
         Assert.True(controller.IsBlocked);
         Assert.Equal(0, view.Hidden);
     }
