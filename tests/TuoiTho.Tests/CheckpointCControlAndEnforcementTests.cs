@@ -71,7 +71,7 @@ public sealed class CheckpointCControlAndEnforcementTests
         var denial = new PolicyDecision(false, AccessDenyReason.QuotaExhausted, 0, []);
         var policy = Policy() with { TestMode = false };
         Assert.Equal("NOT_TARGETED", (await enforcer.EnforceAsync(policy, 8, denial)).Outcome);
-        Assert.Equal("REAL_SESSION_LOCK", (await enforcer.EnforceAsync(policy, 7, denial)).Outcome);
+        Assert.Equal("REAL_SOFT_LOCK", (await enforcer.EnforceAsync(policy, 7, denial)).Outcome);
         Assert.Equal("ALREADY_ENFORCED", (await enforcer.EnforceAsync(policy, 7, denial)).Outcome);
         Assert.Equal([7], native.Disconnected);
     }
