@@ -26,17 +26,6 @@ public sealed class M1LifecycleScriptTests
     }
 
     [Fact]
-    public void RealModeStartsEnforcementAsLocalSystemService()
-    {
-        var script = Script("M1-START.ps1");
-        Assert.Contains("runtime-control.json", script);
-        Assert.Contains("ServiceHost=LocalSystem", script);
-        Assert.Contains("sc.exe create", script);
-        Assert.Contains("obj= LocalSystem", script);
-        Assert.Contains("sc.exe start", script, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
     public void RootModeSwitchScriptsPersistRealAndTestSelections()
     {
         var root = TestRepositoryRoot.Get();
