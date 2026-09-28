@@ -22,7 +22,8 @@ builder.Services.AddSingleton<LocalWarningListener>(services =>
 {
     var options = services.GetRequiredService<IOptions<SessionAgentOptions>>().Value;
     SecurityIdentifier? publisher = null;
-    if (options.M1TestMode && !string.IsNullOrWhiteSpace(options.M1WarningPublisherSid)) publisher = new SecurityIdentifier(options.M1WarningPublisherSid);
+    if (!string.IsNullOrWhiteSpace(options.M1WarningPublisherSid))
+        publisher = new SecurityIdentifier(options.M1WarningPublisherSid);
     return new LocalWarningListener(options.ProfileId, System.Diagnostics.Process.GetCurrentProcess().SessionId, services.GetRequiredService<IChildWarningSink>(), services.GetRequiredService<ILogger<LocalWarningListener>>(), publisher, services.GetRequiredService<IChildSoftLockController>());
 });
 builder.Services.AddHostedService<Worker>();
