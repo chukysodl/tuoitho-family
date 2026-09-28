@@ -6,7 +6,8 @@ public sealed record ChildSoftLockState(
     string ProfileId,
     AccessDenyReason Reason,
     string Remaining,
-    bool ShowM1EmergencyExit);
+    bool ShowM1EmergencyExit,
+    bool IsRealLock);
 
 public interface IChildSoftLockView : IDisposable
 {
@@ -28,7 +29,8 @@ public interface IM1ParentControlLauncher
 }
 
 /// <summary>
-/// M1 visual-only blocker. It never calls Windows lock, logoff, shutdown, or process-control APIs.
+/// Interactive-session blocker. Test mode exposes an emergency escape; real mode stays
+/// full-screen until policy becomes allowed. It never logs off or disconnects Windows.
 /// </summary>
 public sealed class ChildSoftLockController : IChildSoftLockController
 {
@@ -87,7 +89,7 @@ public sealed class ChildSoftLockController : IChildSoftLockController
 
             blockedReason = nextReason;
             visualDismissed = false;
-            view.Show(new ChildSoftLockState(profileId, nextReason, "00:00:00", allowM1EmergencyExit));
+            view.Show(new ChildSoftLockState(profileId, nextReason, "00:00:00", allowM1EmergencyExit, !allowM1EmergencyExit));
         }
     }
 
@@ -123,7 +125,7 @@ public sealed class ChildSoftLockController : IChildSoftLockController
                 return;
             }
 
-            view.Show(new ChildSoftLockState(profileId, blockedReason, "00:00:00", allowM1EmergencyExit));
+            view.Show(new ChildSoftLockState(profileId, blockedReason, "00:00:00", allowM1EmergencyExit, !allowM1EmergencyExit));
         }
     }
 
