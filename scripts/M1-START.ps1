@@ -106,13 +106,13 @@ if ($realMode) {
     }
 
     if ($null -eq $existingService) {
-        $createOutput = & sc.exe create $serviceName "binPath= `"$serviceExe`"" "start= auto" "obj= LocalSystem" 2>&1
+        $createOutput = & sc.exe create $serviceName binPath= "`"$serviceExe`"" start= auto obj= LocalSystem 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Output ('M1 START FAIL: Could not create LocalSystem service. ' + ($createOutput | Out-String).Trim())
             exit 5
         }
     } else {
-        $configOutput = & sc.exe config $serviceName "binPath= `"$serviceExe`"" "start= auto" "obj= LocalSystem" 2>&1
+        $configOutput = & sc.exe config $serviceName binPath= "`"$serviceExe`"" start= auto obj= LocalSystem 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Output ('M1 START FAIL: Could not configure LocalSystem service. ' + ($configOutput | Out-String).Trim())
             exit 5
