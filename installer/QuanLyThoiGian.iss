@@ -47,7 +47,6 @@ Name: "desktopicon"; Description: "Tạo biểu tượng Quản lý thời gian 
 
 [Run]
 Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\Installer\install-production.ps1"" -InstallDir ""{app}"" -ChromeExtensionId ""{#ChromeExtensionId}"" -EdgeExtensionId ""{#EdgeExtensionId}"""; StatusMsg: "Đang bật bảo vệ và cấu hình trình duyệt..."; Flags: runhidden waituntilterminated
-Filename: "{app}\AdminTool\TuoiTho.AdminTool.exe"; Parameters: "--set-password"; Description: "Thiết lập mật khẩu phụ huynh"; StatusMsg: "Thiết lập mật khẩu phụ huynh..."; Flags: waituntilterminated
 Filename: "{app}\Parent\TuoiTho.Parent.exe"; Description: "Mở Quản lý thời gian"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
@@ -94,4 +93,27 @@ begin
   Result := FileExists(Tool) and Exec(Tool, '--authorize-uninstall', '', SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
   if not Result then
     MsgBox('Không thể gỡ bảo vệ nếu chưa xác nhận đúng mật khẩu phụ huynh.', mbError, MB_OK);
+end;
+
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  Tool: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    if not FileExists(ParentAuthPath()) then
+    begin
+      Tool := ExpandConstant('{app}\AdminTool\TuoiTho.AdminTool.exe');
+      if not FileExists(Tool) then
+        RaiseException('Thiếu thành phần thiết lập mật khẩu phụ huynh.');
+
+      if not Exec(Tool, '--set-password', '', SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) then
+        RaiseException('Không thể mở phần thiết lập mật khẩu phụ huynh.');
+
+      if ResultCode <> 0 then
+        RaiseException('Cài đặt chưa hoàn tất vì chưa thiết lập mật khẩu phụ huynh.');
+    end;
+  end;
 end;
