@@ -14,8 +14,8 @@ echo ==========================================
 echo      TUOI THO - CHUYEN SANG CHE DO THAT
 echo ==========================================
 echo.
-echo CANH BAO: Che do nay co the khoa/ngat phien Windows cua tai khoan tre.
-echo Chi tiep tuc khi ban dang co quyen truy cap may va da test Remote ONLINE.
+echo CANH BAO: Che do nay se khoa bang giao dien Tuoi Tho toan man hinh.
+echo Khong logout/ngat phien Windows. Chi tiep tuc khi da test Remote ONLINE.
 echo.
 choice /C YN /N /M "Bat CHE DO THAT? [Y/N]: "
 if errorlevel 2 exit /b 1
