@@ -44,7 +44,7 @@ public sealed class ParentControlForm : Form
   headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
   headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
   var headerText=new FlowLayoutPanel{AutoSize=true,FlowDirection=FlowDirection.TopDown,WrapContents=false,BackColor=Color.Transparent,Margin=Padding.Empty};
-  headerText.Controls.Add(new Label{Text="TUỔI THƠ",Font=new Font("Segoe UI",25,FontStyle.Bold),ForeColor=Color.White,AutoSize=true,Margin=Padding.Empty});
+  headerText.Controls.Add(new Label{Text="QUẢN LÝ THỜI GIAN",Font=new Font("Segoe UI",25,FontStyle.Bold),ForeColor=Color.White,AutoSize=true,Margin=Padding.Empty});
   headerText.Controls.Add(new Label{Text="Quản lý thời gian sử dụng an toàn và dễ hiểu",Font=new Font("Segoe UI",10.5f),ForeColor=Color.FromArgb(220,235,247),AutoSize=true,Margin=new Padding(2,4,0,0)});
   var badge=new Label{Text="PHỤ HUYNH",AutoSize=true,Font=new Font("Segoe UI",9,FontStyle.Bold),ForeColor=Navy,BackColor=Color.FromArgb(232,250,247),Padding=new Padding(14,8,14,8),Margin=new Padding(8,10,0,0)};
   headerGrid.Controls.Add(headerText,0,0);headerGrid.Controls.Add(badge,1,0);header.Controls.Add(headerGrid);root.Controls.Add(header,0,0);
