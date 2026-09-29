@@ -7,6 +7,7 @@ namespace TuoiTho.Parent;
 public sealed class TimePolicyPanel : UserControl
 {
     private readonly ParentDesktopController controller;
+    private readonly IParentAuthorizationGate? authorization;
     private readonly NumericUpDown hours = new() { Minimum = 0, Maximum = 24, Width = 72 };
     private readonly NumericUpDown minutes = new() { Minimum = 0, Maximum = 59, Width = 72, Increment = 5 };
     private readonly DataGridView grid = new()
@@ -21,9 +22,10 @@ public sealed class TimePolicyPanel : UserControl
     public event EventHandler? ManualActionCompleted;
     public event EventHandler<ParentUiResult>? PolicySaved;
 
-    public TimePolicyPanel(ParentDesktopController controller)
+    public TimePolicyPanel(ParentDesktopController controller, IParentAuthorizationGate? authorization = null)
     {
         this.controller = controller;
+        this.authorization = authorization;
         Dock = DockStyle.Fill;
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(24), RowCount = 4 };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -92,6 +94,7 @@ public sealed class TimePolicyPanel : UserControl
     private async Task SaveAsync()
     {
         if (updating) return;
+        if (authorization is not null && !authorization.EnsureAuthorized(FindForm())) return;
         var windows = new List<AllowedUsageWindow>();
         foreach (DataGridViewRow row in grid.Rows)
         {
