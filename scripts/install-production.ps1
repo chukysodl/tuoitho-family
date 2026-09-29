@@ -40,8 +40,10 @@ foreach ($file in @($serviceExe,$agentExe,$parentExe,$browserHostExe)) {
 
 $chromePresent = Test-BrowserInstalled 'chrome.exe'
 $edgePresent = Test-BrowserInstalled 'msedge.exe'
-if ($chromePresent) { Assert-ExtensionId $ChromeExtensionId 'Chrome' }
-if ($edgePresent) { Assert-ExtensionId $EdgeExtensionId 'Edge' }
+$chromeManaged = $chromePresent -and -not [string]::IsNullOrWhiteSpace($ChromeExtensionId)
+$edgeManaged = $edgePresent -and -not [string]::IsNullOrWhiteSpace($EdgeExtensionId)
+if ($chromeManaged) { Assert-ExtensionId $ChromeExtensionId 'Chrome' }
+if ($edgeManaged) { Assert-ExtensionId $EdgeExtensionId 'Edge' }
 
 $programData = Join-Path $env:ProgramData 'TuoiTho'
 New-Item -ItemType Directory -Path $programData -Force | Out-Null
@@ -70,8 +72,8 @@ $production = [ordered]@{
 $production | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $programData 'production.json') -Encoding UTF8
 
 $extensionIds = @()
-if ($chromePresent) { $extensionIds += $ChromeExtensionId }
-if ($edgePresent -and $EdgeExtensionId -notin $extensionIds) { $extensionIds += $EdgeExtensionId }
+if ($chromeManaged) { $extensionIds += $ChromeExtensionId }
+if ($edgeManaged -and $EdgeExtensionId -notin $extensionIds) { $extensionIds += $EdgeExtensionId }
 if ($extensionIds.Count -gt 0) {
     $browserConfig = [ordered]@{
         ExtensionId = $extensionIds[0]
@@ -98,14 +100,14 @@ if ($extensionIds.Count -gt 0) {
     $native | ConvertTo-Json -Depth 4 | Set-Content $chromeManifest -Encoding UTF8
     $native | ConvertTo-Json -Depth 4 | Set-Content $edgeManifest -Encoding UTF8
 
-    if ($chromePresent) {
+    if ($chromeManaged) {
         New-Item 'HKLM:\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.tuoitho.browserhost' -Force | Out-Null
         Set-ItemProperty 'HKLM:\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.tuoitho.browserhost' -Name '(default)' -Value $chromeManifest
         New-Item 'HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist' -Force | Out-Null
         Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist' -Name '1000' -Value "$ChromeExtensionId;https://clients2.google.com/service/update2/crx"
     }
 
-    if ($edgePresent) {
+    if ($edgeManaged) {
         New-Item 'HKLM:\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.tuoitho.browserhost' -Force | Out-Null
         Set-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.tuoitho.browserhost' -Name '(default)' -Value $edgeManifest
         New-Item 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist' -Force | Out-Null
@@ -137,5 +139,7 @@ Start-Service -Name $serviceName
 Write-Host 'PRODUCTION INSTALL CONFIG: PASS'
 Write-Host "Service: $serviceName (Automatic + Recovery)"
 Write-Host 'SessionAgent watchdog: 2 giây'
-Write-Host "Chrome force install: $chromePresent"
-Write-Host "Edge force install: $edgePresent"
+Write-Host "Chrome force install: $chromeManaged"
+Write-Host "Edge force install: $edgeManaged"
+if ($chromePresent -and -not $chromeManaged) { Write-Host 'Chrome: PRE-STORE TEST - chưa ép extension vì chưa có Store ID thật.' }
+if ($edgePresent -and -not $edgeManaged) { Write-Host 'Edge: PRE-STORE TEST - chưa ép extension vì chưa có Store ID thật.' }
