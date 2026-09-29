@@ -4,6 +4,11 @@ using Microsoft.Extensions.Options;
 using TuoiTho.SessionAgent;
 
 var builder = Host.CreateApplicationBuilder(args);
+var commandLineSettings = ParseProductionArguments(args);
+if (commandLineSettings.Count > 0)
+{
+    builder.Configuration.AddInMemoryCollection(commandLineSettings);
+}
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => { options.IncludeScopes = true; options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffzzz"; });
 builder.Services.Configure<SessionAgentOptions>(builder.Configuration.GetSection(SessionAgentOptions.SectionName));
@@ -29,3 +34,31 @@ builder.Services.AddSingleton<LocalWarningListener>(services =>
 builder.Services.AddHostedService<Worker>();
 using var host = builder.Build();
 host.Run();
+
+static Dictionary<string, string?> ParseProductionArguments(string[] args)
+{
+    var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+    for (var i = 0; i < args.Length; i++)
+    {
+        switch (args[i])
+        {
+            case "--profile-id" when i + 1 < args.Length:
+                values["SessionAgent:ProfileId"] = args[++i];
+                break;
+            case "--publisher-sid" when i + 1 < args.Length:
+                values["SessionAgent:M1WarningPublisherSid"] = args[++i];
+                break;
+            case "--parent-exe" when i + 1 < args.Length:
+                values["SessionAgent:ParentExecutablePath"] = args[++i];
+                break;
+            case "--real":
+                values["SessionAgent:M1TestMode"] = "false";
+                break;
+            case "--test":
+                values["SessionAgent:M1TestMode"] = "true";
+                break;
+        }
+    }
+
+    return values;
+}
