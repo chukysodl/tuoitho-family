@@ -13,6 +13,14 @@ using TuoiTho.Storage;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+// Production installer writes machine-wide runtime protection settings here.
+var productionConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TuoiTho", "production.json");
+var productionMachineSettings = LoadMachineSettings(productionConfigPath);
+if (productionMachineSettings.Count > 0)
+{
+    builder.Configuration.AddInMemoryCollection(productionMachineSettings);
+}
+
 // M5 setup writes public project settings to a protected, machine-wide config file.
 var remoteConfigPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TuoiTho", "RemoteControl", "remote-control.json");
 var remoteMachineSettings = LoadMachineSettings(remoteConfigPath);
@@ -71,6 +79,7 @@ builder.Services.AddSingleton<IAppEnforcementProcessSource, WindowsAppEnforcemen
 builder.Services.AddSingleton<IAppEnforcementProcessController, WindowsAppEnforcementProcessController>();
 builder.Services.Configure<ParentControlOptions>(builder.Configuration.GetSection(ParentControlOptions.SectionName));
 builder.Services.Configure<M1BootstrapOptions>(builder.Configuration.GetSection(M1BootstrapOptions.SectionName));
+builder.Services.Configure<ProductionProtectionOptions>(builder.Configuration.GetSection(ProductionProtectionOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PolicyChangeSignal>();
 builder.Services.AddSingleton<ParentControlService>(services => new ParentControlService(services.GetRequiredService<IDeviceTimePolicyStore>(), services.GetRequiredService<ITimeUsageStore>(), services.GetRequiredService<IClock>(), services.GetRequiredService<DeviceTimePolicyEngine>(), services.GetRequiredService<PolicyChangeSignal>(), services.GetRequiredService<ActivitySampleCache>(), services.GetRequiredService<WindowsSessionEventSource>(), services.GetRequiredService<SessionTimeEngine>(), services.GetRequiredService<IAppPolicyStore>(), services.GetRequiredService<AppPolicyEngine>(), services.GetRequiredService<IManagedSessionAppDiscovery>(), services.GetRequiredService<AppEnforcementState>(), services.GetRequiredService<AppEnforcementAuditTrail>(), services.GetRequiredService<IWebPolicyStore>(), services.GetRequiredService<BrowserRuntimeStatusCache>(), services.GetRequiredService<RemoteDeviceIdentityManager>(), services.GetRequiredService<IRemotePolicyStore>(), services.GetRequiredService<RemoteControlRuntimeStatusCache>()));
@@ -80,6 +89,7 @@ builder.Services.AddSingleton<IPolicyWarningPublisher, LocalPolicyWarningPublish
 builder.Services.AddSingleton<DevicePolicyCoordinator>();
 builder.Services.AddSingleton<IManagedSessionNativeApi, WindowsManagedSessionNativeApi>();
 builder.Services.AddSingleton<SafeChildSessionEnforcer>();
+builder.Services.AddSingleton<IInteractiveSessionAgentRuntime, WindowsInteractiveSessionAgentRuntime>();
 builder.Services.AddSingleton<WtsSessionActivityProvider>();
 builder.Services.AddSingleton<ActivitySampleCache>();
 builder.Services.AddSingleton<IWindowsSessionActivityProvider, AgentReportedSessionActivityProvider>();
@@ -97,6 +107,7 @@ builder.Services.AddSingleton<SessionTimeEngine>(services =>
         options.ProfileId);
 });
 builder.Services.AddHostedService<M1Bootstrapper>();
+builder.Services.AddHostedService<ProductionSessionAgentWatchdog>();
 builder.Services.AddHostedService<RemoteControlWorker>();
 builder.Services.AddHostedService<Worker>();
 builder.Services.AddHostedService<ParentControlListener>();
