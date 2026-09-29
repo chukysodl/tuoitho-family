@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using TuoiTho.Core.Policy;
 
@@ -73,12 +74,46 @@ public sealed class ProductionSessionAgentWatchdog(
             ProtectionLog.SessionBound(logger, session.SessionId, session.UserSid);
         }
 
+        RebindBrowserConfiguration(value.ProfileId, session);
+
         if (runtime.IsAgentRunning(session.SessionId, value.SessionAgentPath)) return;
 
         runtime.LaunchAgent(session, value.SessionAgentPath, value.ProfileId,
             string.IsNullOrWhiteSpace(value.ParentExecutablePath) ? null : value.ParentExecutablePath);
         changes.Notify();
         ProtectionLog.AgentRestarted(logger, session.SessionId);
+    }
+
+    private void RebindBrowserConfiguration(string profileId, ActiveInteractiveSession session)
+    {
+        var path = BrowserControlConfiguration.DefaultPath;
+        if (!File.Exists(path)) return;
+
+        try
+        {
+            var configuration = BrowserControlConfiguration.Load(path);
+            if (configuration.ManagedSessionId == session.SessionId &&
+                string.Equals(configuration.ManagedUserSid, session.UserSid, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(configuration.ProfileId, profileId, StringComparison.Ordinal) &&
+                !configuration.TestMode)
+            {
+                return;
+            }
+
+            var updated = configuration with
+            {
+                ProfileId = profileId,
+                ManagedSessionId = session.SessionId,
+                ManagedUserSid = session.UserSid,
+                TestMode = false
+            };
+            File.WriteAllText(path, JsonSerializer.Serialize(updated, new JsonSerializerOptions { WriteIndented = true }));
+            ProtectionLog.BrowserBound(logger, session.SessionId);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
+        {
+            ProtectionLog.BrowserBindFailed(logger, exception);
+        }
     }
 }
 
@@ -92,4 +127,10 @@ internal static partial class ProtectionLog
 
     [LoggerMessage(EventId = 2802, Level = LogLevel.Warning, Message = "SessionAgent was missing and has been restarted in session {SessionId}.")]
     public static partial void AgentRestarted(ILogger logger, int sessionId);
+
+    [LoggerMessage(EventId = 2803, Level = LogLevel.Information, Message = "Browser-control identity rebound to interactive session {SessionId}.")]
+    public static partial void BrowserBound(ILogger logger, int sessionId);
+
+    [LoggerMessage(EventId = 2804, Level = LogLevel.Warning, Message = "Browser-control identity could not be rebound.")]
+    public static partial void BrowserBindFailed(ILogger logger, Exception exception);
 }
