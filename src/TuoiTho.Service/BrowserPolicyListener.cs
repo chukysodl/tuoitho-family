@@ -89,7 +89,7 @@ public sealed class BrowserPolicyListener(
 
     private async Task<BrowserNavigationResponse> EvaluateAsync(BrowserNavigationRequest? request, string? sid, BrowserControlConfiguration settings, CancellationToken token)
     {
-        if (request is null || sid is null || !string.Equals(sid, settings.ManagedUserSid, StringComparison.OrdinalIgnoreCase) || !BrowserNavigationValidator.IsValid(request, settings.ExtensionId)) return new(false, "REJECTED_BROWSER_REQUEST");
+        if (request is null || sid is null || !string.Equals(sid, settings.ManagedUserSid, StringComparison.OrdinalIgnoreCase) || !BrowserNavigationValidator.IsValid(request, settings.AllowedExtensionIds)) return new(false, "REJECTED_BROWSER_REQUEST");
         var policy = await policies.LoadAsync(request.ProfileId, token);
         if (policy is null || policy.ManagedSessionId != request.ManagedSessionId || !string.Equals(policy.ManagedUserSid, sid, StringComparison.OrdinalIgnoreCase)) return new(false, "PROFILE_OR_SESSION_MISMATCH");
         if (request.DnrSyncState is not null)
