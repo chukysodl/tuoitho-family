@@ -7,6 +7,7 @@ namespace TuoiTho.Parent;
 public sealed class AppPolicyPanel : UserControl
 {
     private readonly ParentDesktopController controller;
+    private readonly IParentAuthorizationGate? authorization;
     private readonly DataGridView grid = new()
     {
         Dock = DockStyle.Fill,
@@ -44,9 +45,10 @@ public sealed class AppPolicyPanel : UserControl
     private ParentObservedApp[] visibleObserved = [];
     private ParentAppControlStatus? currentStatus;
 
-    public AppPolicyPanel(ParentDesktopController controller)
+    public AppPolicyPanel(ParentDesktopController controller, IParentAuthorizationGate? authorization = null)
     {
         this.controller = controller;
+        this.authorization = authorization;
         Dock = DockStyle.Fill;
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), RowCount = 5, ColumnCount = 1 };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -206,6 +208,7 @@ public sealed class AppPolicyPanel : UserControl
 
     private async Task RunManualAsync(Func<Task> action)
     {
+        if (authorization is not null && !authorization.EnsureAuthorized(FindForm())) return;
         ManualActionStarting?.Invoke(this, EventArgs.Empty);
         try { await action(); }
         finally { ManualActionCompleted?.Invoke(this, EventArgs.Empty); }
