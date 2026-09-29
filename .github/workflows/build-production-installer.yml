@@ -1,0 +1,68 @@
+name: Build production installer
+
+on:
+  push:
+    branches:
+      - task/009-installer-hardening
+  workflow_dispatch:
+    inputs:
+      chrome_extension_id:
+        description: Chrome Web Store extension ID
+        required: true
+        type: string
+      edge_extension_id:
+        description: Microsoft Edge Add-ons extension ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    env:
+      CHROME_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.chrome_extension_id || 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }}
+      EDGE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.edge_extension_id || 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build and test
+        shell: pwsh
+        run: |
+          dotnet restore TuoiTho.sln
+          dotnet build TuoiTho.sln --configuration Release --no-restore
+          dotnet test TuoiTho.sln --configuration Release --no-build --no-restore
+
+      - name: Publish self-contained components
+        shell: pwsh
+        run: ./scripts/build-production.ps1
+
+      - name: Install Inno Setup compiler
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)) 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw "ISCC not found: $iscc" }
+          & $iscc "/DChromeExtensionId=$env:CHROME_ID" "/DEdgeExtensionId=$env:EDGE_ID" "installer\QuanLyThoiGian.iss"
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed.' }
+
+      - name: Upload installer validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event_name == 'workflow_dispatch' && 'QuanLyThoiGian-Production' || 'QuanLyThoiGian-Installer-Validation' }}
+          path: |
+            artifacts/installer/QuanLyThoiGian_Setup.exe
+            artifacts/production/QuanLyThoiGian-BrowserExtension-Store.zip
+            artifacts/production/build-info.json
+          if-no-files-found: error
