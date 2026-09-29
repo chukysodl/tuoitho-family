@@ -155,7 +155,7 @@ public sealed class ChildSoftLockForm : Form
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 12));
-        panel.Controls.Add(new Label { Text = "✦  TUỔI THƠ", AutoSize = true, Anchor = AnchorStyles.None, ForeColor = Color.FromArgb(196,247,239), Font = new Font("Segoe UI Semibold",14), Margin = new Padding(8,8,8,10) }, 0, 0);
+        panel.Controls.Add(new Label { Text = "✦  QUẢN LÝ THỜI GIAN", AutoSize = true, Anchor = AnchorStyles.None, ForeColor = Color.FromArgb(196,247,239), Font = new Font("Segoe UI Semibold",14), Margin = new Padding(8,8,8,10) }, 0, 0);
         panel.Controls.Add(headline, 0, 1);
         panel.Controls.Add(message, 0, 2);
         panel.Controls.Add(CenteredLabel("Vui lòng nhờ phụ huynh mở khóa hoặc cộng thêm thời gian.", 14), 0, 3);
