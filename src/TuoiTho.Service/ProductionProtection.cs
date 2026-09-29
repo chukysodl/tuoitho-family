@@ -61,10 +61,30 @@ public sealed class ProductionSessionAgentWatchdog(
         if (session is null) return;
 
         var policy = await policies.LoadAsync(value.ProfileId, token);
-        if (policy is not null &&
-            (policy.ManagedSessionId != session.SessionId ||
+        if (policy is null)
+        {
+            var fullDay = Enum.GetValues<DayOfWeek>()
+                .Select(day => new AllowedUsageWindow(day, TimeOnly.MinValue, new TimeOnly(23, 59)))
+                .ToArray();
+            policy = new DeviceTimePolicy(
+                value.ProfileId,
+                session.SessionId,
+                1440,
+                fullDay,
+                DeviceTimePolicy.DefaultWarnings,
+                ParentLock: false,
+                ParentOverride: false,
+                TestMode: false)
+            {
+                ManagedUserSid = session.UserSid
+            };
+            await policies.SaveAsync(policy, token);
+            changes.Notify();
+            ProtectionLog.DefaultPolicyCreated(logger, session.SessionId);
+        }
+        else if (policy.ManagedSessionId != session.SessionId ||
              !string.Equals(policy.ManagedUserSid, session.UserSid, StringComparison.OrdinalIgnoreCase) ||
-             policy.TestMode))
+             policy.TestMode)
         {
             await policies.SaveAsync(policy with
             {
@@ -135,4 +155,7 @@ internal static partial class ProtectionLog
 
     [LoggerMessage(EventId = 2804, Level = LogLevel.Warning, Message = "Browser-control identity could not be rebound.")]
     public static partial void BrowserBindFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 2805, Level = LogLevel.Information, Message = "Created a safe default production policy for session {SessionId}.")]
+    public static partial void DefaultPolicyCreated(ILogger logger, int sessionId);
 }
