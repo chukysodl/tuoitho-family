@@ -37,9 +37,11 @@ Source: "..\artifacts\production\BrowserHost\*"; DestDir: "{app}\BrowserHost"; F
 Source: "..\artifacts\production\AdminTool\*"; DestDir: "{app}\AdminTool"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\scripts\install-production.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
 Source: "..\scripts\uninstall-production.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
+Source: "..\scripts\production-check.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\Parent\TuoiTho.Parent.exe"
+Name: "{autoprograms}\{#AppName}\Kiểm tra bảo vệ"; Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\Installer\production-check.ps1"" -InstallDir ""{app}"""; WorkingDir: "{app}"; IconFilename: "{app}\Parent\TuoiTho.Parent.exe"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\Parent\TuoiTho.Parent.exe"; Tasks: desktopicon
 
 [Tasks]
@@ -100,6 +102,8 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
   Tool: String;
+  CheckScript: String;
+  CheckParams: String;
 begin
   if CurStep = ssPostInstall then
   begin
@@ -115,5 +119,14 @@ begin
       if ResultCode <> 0 then
         RaiseException('Cài đặt chưa hoàn tất vì chưa thiết lập mật khẩu phụ huynh.');
     end;
+
+    CheckScript := ExpandConstant('{app}\Installer\production-check.ps1');
+    CheckParams := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + CheckScript +
+      '" -InstallDir "' + ExpandConstant('{app}') + '"';
+    if not Exec('powershell.exe', CheckParams, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      RaiseException('Không thể chạy kiểm tra bảo vệ sau cài đặt.');
+
+    if ResultCode <> 0 then
+      RaiseException('Kiểm tra bảo vệ sau cài đặt chưa đạt. Hãy chạy Repair hoặc xem mục Kiểm tra bảo vệ.');
   end;
 end;
