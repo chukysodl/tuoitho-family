@@ -6,6 +6,7 @@ namespace TuoiTho.Parent;
 public sealed class RemotePairingPanel : UserControl
 {
     private readonly ParentDesktopController controller;
+    private readonly IParentAuthorizationGate? authorization;
     private readonly Label result = new() { AutoSize = true, ForeColor = Color.DarkSlateGray, MaximumSize = new Size(760, 0) };
     private readonly Label code = new() { AutoSize = true, Font = new Font("Segoe UI", 24, FontStyle.Bold), ForeColor = Color.DarkBlue, Padding = new Padding(0, 12, 0, 12) };
     private readonly Label mode = new() { AutoSize = true, Font = new Font("Segoe UI", 12, FontStyle.Bold) };
@@ -14,9 +15,10 @@ public sealed class RemotePairingPanel : UserControl
     private readonly System.Windows.Forms.Timer expiryTimer = new() { Interval = 1000 };
     private DateTimeOffset? expiresAt;
 
-    public RemotePairingPanel(ParentDesktopController controller)
+    public RemotePairingPanel(ParentDesktopController controller, IParentAuthorizationGate? authorization = null)
     {
         this.controller = controller;
+        this.authorization = authorization;
         Dock = DockStyle.Fill;
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28), ColumnCount = 1, RowCount = 5 };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -50,6 +52,7 @@ public sealed class RemotePairingPanel : UserControl
 
     public async Task GenerateAsync(CancellationToken token = default)
     {
+        if (authorization is not null && !authorization.EnsureAuthorized(FindForm())) return;
         ManualActionStarting?.Invoke(this, EventArgs.Empty);
         try
         {
