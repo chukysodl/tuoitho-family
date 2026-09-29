@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Tuoi Tho - Bat che do thu nghiem
+title Quan ly thoi gian - Bat che do thu nghiem
 
 fltmc >nul 2>&1
 if errorlevel 1 (
@@ -14,8 +14,8 @@ if not exist "C:\ProgramData\TuoiTho" mkdir "C:\ProgramData\TuoiTho"
 > "C:\ProgramData\TuoiTho\run-mode.txt" echo TEST
 
 echo ==========================================
-echo      TUOI THO - CHE DO THU NGHIEM
+echo      QUAN LY THOI GIAN - CHE DO THU NGHIEM
 echo ==========================================
-echo Da luu che do TEST. Dang khoi dong lai Tuoi Tho...
+echo Da luu che do TEST. Dang khoi dong lai Quan ly thoi gian...
 call "%~dp0TUOITHO-START.cmd"
 exit /b %ERRORLEVEL%
