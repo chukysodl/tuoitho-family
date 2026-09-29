@@ -36,7 +36,7 @@ public sealed class RemotePairingPanel : UserControl
         details.Controls.Add(expiry);
         details.Controls.Add(runtime);
         details.Controls.Add(result);
-        details.Controls.Add(new Label { Text = "Trên điện thoại, mở trang Tuổi Thơ Remote, đăng nhập tài khoản phụ huynh và nhập mã trước khi đồng hồ về 00:00. Máy này vẫn tự áp dụng chính sách khi ngoại tuyến.", AutoSize = true, MaximumSize = new Size(760, 0), Padding = new Padding(0, 16, 0, 0) });
+        details.Controls.Add(new Label { Text = "Trên điện thoại, mở trang Quản lý thời gian Remote, đăng nhập tài khoản phụ huynh và nhập mã trước khi đồng hồ về 00:00. Máy này vẫn tự áp dụng chính sách khi ngoại tuyến.", AutoSize = true, MaximumSize = new Size(760, 0), Padding = new Padding(0, 16, 0, 0) });
         root.Controls.Add(details, 0, 4);
         Controls.Add(root);
         expiryTimer.Tick += (_, _) => UpdateExpiry();
