@@ -127,7 +127,7 @@ static void RelaunchElevated(string[] currentArgs)
     Process.Start(start);
 }
 
-static string Quote(string value) => """ + value.Replace(""", "\\"", StringComparison.Ordinal) + """;
+static string Quote(string value) => "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
 
 sealed class SetPasswordForm : Form
 {
