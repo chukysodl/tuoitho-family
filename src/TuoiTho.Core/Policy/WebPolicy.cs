@@ -198,9 +198,13 @@ public sealed record BrowserNavigationResponse(bool Allowed, string Reason, stri
 public static class BrowserNavigationValidator
 {
     public const int MaximumMessageBytes = 16 * 1024;
-    public static bool IsValid(BrowserNavigationRequest request, string expectedExtensionId)
+    public static bool IsValid(BrowserNavigationRequest request, string expectedExtensionId) =>
+        IsValid(request, [expectedExtensionId]);
+
+    public static bool IsValid(BrowserNavigationRequest request, IEnumerable<string> expectedExtensionIds)
     {
-        if (request is null || string.IsNullOrWhiteSpace(expectedExtensionId) || !string.Equals(request.ExtensionId, expectedExtensionId, StringComparison.Ordinal) || request.ProfileId.Length is < 1 or > 128 || request.ManagedSessionId < 0) return false;
+        var allowedIds = expectedExtensionIds?.Where(id => !string.IsNullOrWhiteSpace(id)).ToHashSet(StringComparer.Ordinal);
+        if (request is null || allowedIds is null || !allowedIds.Contains(request.ExtensionId) || request.ProfileId.Length is < 1 or > 128 || request.ManagedSessionId < 0) return false;
         if (request.IsPolicySync) return request.Provider == BrowserProvider.GenericWeb && string.IsNullOrEmpty(request.Host) && string.IsNullOrEmpty(request.Path) && request.ContentType == BrowserContentType.Unknown && request.ChannelId is null && request.ChannelHandle is null && request.TikTokCreator is null;
         if (request.DnrSyncState is not null || request.DnrRuleCount is not null || request.CustomRuleCount is not null || request.DnrError is not null)
         {
