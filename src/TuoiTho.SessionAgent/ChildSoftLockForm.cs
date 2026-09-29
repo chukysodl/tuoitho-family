@@ -129,7 +129,7 @@ public sealed class ChildSoftLockForm : Form
 
     public ChildSoftLockForm(Action emergencyExitRequested, Action parentControlRequested)
     {
-        Text = "Tuổi Thơ";
+        Text = "Quản lý thời gian";
         BackColor = Color.FromArgb(20, 50, 82);
         ForeColor = Color.White;
         FormBorderStyle = FormBorderStyle.None;
