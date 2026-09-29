@@ -9,7 +9,7 @@ public static class ChildWarningDialog
     {
         var thread = new Thread(() =>
         {
-            var result = MessageBox(IntPtr.Zero, text, "Tuổi Thơ", 0x40 | 0x1000);
+            var result = MessageBox(IntPtr.Zero, text, "Quản lý thời gian", 0x40 | 0x1000);
             GC.KeepAlive(result);
         }) { IsBackground = true, Name = "TuoiTho Child Warning" };
         thread.SetApartmentState(ApartmentState.STA);
