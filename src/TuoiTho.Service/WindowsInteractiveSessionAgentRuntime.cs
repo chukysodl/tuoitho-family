@@ -77,6 +77,7 @@ public sealed class WindowsInteractiveSessionAgentRuntime : IInteractiveSessionA
 
         IntPtr primaryToken = IntPtr.Zero;
         IntPtr environment = IntPtr.Zero;
+        IntPtr commandLineBuffer = IntPtr.Zero;
         try
         {
             if (!DuplicateTokenEx(userToken, MaximumAllowed, IntPtr.Zero, SecurityImpersonation, TokenPrimary, out primaryToken))
@@ -101,10 +102,11 @@ public sealed class WindowsInteractiveSessionAgentRuntime : IInteractiveSessionA
                 Desktop = @"winsta0\default"
             };
 
+            commandLineBuffer = Marshal.StringToHGlobalUni(command.ToString());
             if (!CreateProcessAsUser(
                     primaryToken,
                     executable,
-                    command,
+                    commandLineBuffer,
                     IntPtr.Zero,
                     IntPtr.Zero,
                     false,
@@ -122,6 +124,7 @@ public sealed class WindowsInteractiveSessionAgentRuntime : IInteractiveSessionA
         }
         finally
         {
+            if (commandLineBuffer != IntPtr.Zero) Marshal.FreeHGlobal(commandLineBuffer);
             if (environment != IntPtr.Zero) DestroyEnvironmentBlock(environment);
             if (primaryToken != IntPtr.Zero) CloseHandle(primaryToken);
             CloseHandle(userToken);
@@ -192,7 +195,7 @@ public sealed class WindowsInteractiveSessionAgentRuntime : IInteractiveSessionA
     private static extern bool CreateProcessAsUser(
         IntPtr token,
         string applicationName,
-        StringBuilder commandLine,
+        IntPtr commandLine,
         IntPtr processAttributes,
         IntPtr threadAttributes,
         bool inheritHandles,
