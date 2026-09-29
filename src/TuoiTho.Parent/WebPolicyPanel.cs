@@ -5,6 +5,7 @@ namespace TuoiTho.Parent;
 public sealed class WebPolicyPanel : UserControl
 {
     private readonly ParentDesktopController controller;
+    private readonly IParentAuthorizationGate? authorization;
     private readonly TextBox youtube = new() { Width = 260, PlaceholderText = "Dán URL kênh hoặc @handle" };
     private readonly TextBox tiktok = new() { Width = 260, PlaceholderText = "Dán URL hoặc @username" };
     private readonly TextBox customWebsite = new() { Width = 390, PlaceholderText = "Nhập tên miền hoặc URL" };
@@ -15,9 +16,10 @@ public sealed class WebPolicyPanel : UserControl
     private readonly Label runtime = new() { AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Padding = new Padding(0, 0, 0, 8) };
     private IReadOnlyList<WebRule> rules = [];
 
-    public WebPolicyPanel(ParentDesktopController controller)
+    public WebPolicyPanel(ParentDesktopController controller, IParentAuthorizationGate? authorization = null)
     {
         this.controller = controller;
+        this.authorization = authorization;
         Dock = DockStyle.Fill;
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20), ColumnCount = 1, RowCount = 7 };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -53,5 +55,5 @@ public sealed class WebPolicyPanel : UserControl
         return Send(ParentControlAction.SaveWebRule, new("m1-child", BrowserProvider.GenericWeb, scope, decision, identity.NormalizedKey, identity.DisplayValue));
     }
     private Task Delete() { if (grid.CurrentRow?.Index is not int index || index < 0 || index >= rules.Count) return Task.CompletedTask; return Send(ParentControlAction.RemoveWebRule, rules[index]); }
-    private async Task Send(ParentControlAction action, WebRule rule) { var result = await controller.SendWebRuleAsync(action, rule); message.Text = result.Message; Update(result.Status?.Web); }
+    private async Task Send(ParentControlAction action, WebRule rule) { if (authorization is not null && !authorization.EnsureAuthorized(FindForm())) return; var result = await controller.SendWebRuleAsync(action, rule); message.Text = result.Message; Update(result.Status?.Web); }
 }
