@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title Tuoi Tho - Sua Remote mot lan
+title Quan ly thoi gian - Sua Remote mot lan
 
 fltmc >nul 2>&1
 if errorlevel 1 (
@@ -11,7 +11,7 @@ if errorlevel 1 (
 )
 
 echo ==========================================
-echo      TUOI THO - SUA REMOTE MOT LAN
+echo      QUAN LY THOI GIAN - SUA REMOTE MOT LAN
 echo ==========================================
 echo.
 
@@ -76,6 +76,6 @@ if errorlevel 1 (
   sc.exe delete "%MIGRATION_SERVICE%" >nul 2>&1
 )
 
-echo [5/5] Dang khoi dong lai Tuoi Tho va kiem tra...
+echo [5/5] Dang khoi dong lai Quan ly thoi gian va kiem tra...
 call "%~dp0TUOITHO-START.cmd"
 exit /b %ERRORLEVEL%
