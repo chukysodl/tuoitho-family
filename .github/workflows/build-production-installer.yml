@@ -7,12 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       chrome_extension_id:
-        description: Chrome Web Store extension ID
-        required: true
+        description: Chrome Web Store extension ID (leave blank for Pre-Store test)
+        required: false
+        default: ''
         type: string
       edge_extension_id:
-        description: Microsoft Edge Add-ons extension ID
-        required: true
+        description: Microsoft Edge Add-ons extension ID (leave blank for Pre-Store test)
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -22,8 +24,8 @@ jobs:
   installer:
     runs-on: windows-latest
     env:
-      CHROME_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.chrome_extension_id || 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }}
-      EDGE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.edge_extension_id || 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' }}
+      CHROME_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.chrome_extension_id || '' }}
+      EDGE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.edge_extension_id || '' }}
 
     steps:
       - name: Check out repository
@@ -60,7 +62,7 @@ jobs:
       - name: Upload installer validation artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event_name == 'workflow_dispatch' && 'QuanLyThoiGian-Production' || 'QuanLyThoiGian-Installer-Validation' }}
+          name: QuanLyThoiGian-PreStore-Test
           path: |
             artifacts/installer/QuanLyThoiGian_Setup.exe
             artifacts/production/QuanLyThoiGian-BrowserExtension-Store.zip
