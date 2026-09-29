@@ -13,6 +13,24 @@ public sealed record BrowserControlConfiguration(
     string ManagedUserSid,
     bool TestMode)
 {
+    public IReadOnlyList<string>? AdditionalExtensionIds { get; init; }
+
+    public IEnumerable<string> AllowedExtensionIds
+    {
+        get
+        {
+            yield return ExtensionId;
+            if (AdditionalExtensionIds is null) yield break;
+            foreach (var id in AdditionalExtensionIds)
+                if (!string.Equals(id, ExtensionId, StringComparison.Ordinal))
+                    yield return id;
+        }
+    }
+
+    public bool AllowsExtensionId(string? extensionId) =>
+        !string.IsNullOrWhiteSpace(extensionId) &&
+        AllowedExtensionIds.Contains(extensionId, StringComparer.Ordinal);
+
     public static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "TuoiTho",
@@ -35,6 +53,7 @@ public sealed record BrowserControlConfiguration(
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(ExtensionId) ||
+            (AdditionalExtensionIds?.Any(string.IsNullOrWhiteSpace) ?? false) ||
             string.IsNullOrWhiteSpace(ProfileId) ||
             ManagedSessionId < 0 ||
             string.IsNullOrWhiteSpace(ManagedUserSid))
