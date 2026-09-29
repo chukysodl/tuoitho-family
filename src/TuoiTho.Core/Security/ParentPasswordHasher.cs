@@ -20,7 +20,7 @@ public static class ParentPasswordHasher
     public static ParentPasswordRecord Create(string password, int iterations = ParentPasswordRecord.DefaultIterations)
     {
         ValidatePassword(password);
-        if (iterations < 100_000) throw new ArgumentOutOfRangeException(nameof(iterations));
+        ArgumentOutOfRangeException.ThrowIfLessThan(iterations, 100_000);
 
         var salt = RandomNumberGenerator.GetBytes(SaltLength);
         var hash = Rfc2898DeriveBytes.Pbkdf2(
