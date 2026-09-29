@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Tuoi Tho - Bat che do that
+title Quan ly thoi gian - Bat che do that
 
 fltmc >nul 2>&1
 if errorlevel 1 (
@@ -11,10 +11,10 @@ if errorlevel 1 (
 )
 
 echo ==========================================
-echo      TUOI THO - CHUYEN SANG CHE DO THAT
+echo      QUAN LY THOI GIAN - CHUYEN SANG CHE DO THAT
 echo ==========================================
 echo.
-echo CANH BAO: Che do nay se khoa bang giao dien Tuoi Tho toan man hinh.
+echo CANH BAO: Che do nay se khoa bang giao dien Quan ly thoi gian toan man hinh.
 echo Khong logout/ngat phien Windows. Chi tiep tuc khi da test Remote ONLINE.
 echo.
 choice /C YN /N /M "Bat CHE DO THAT? [Y/N]: "
@@ -24,11 +24,11 @@ if not exist "C:\ProgramData\TuoiTho" mkdir "C:\ProgramData\TuoiTho"
 > "C:\ProgramData\TuoiTho\run-mode.txt" echo REAL
 
 echo.
-echo Da luu che do REAL. Dang khoi dong lai Tuoi Tho...
+echo Da luu che do REAL. Dang khoi dong lai Quan ly thoi gian...
 call "%~dp0TUOITHO-START.cmd"
 if errorlevel 1 (
   echo.
-  echo [LOI] Tuoi Tho khoi dong lai khong thanh cong.
+  echo [LOI] Quan ly thoi gian khoi dong lai khong thanh cong.
   pause
   exit /b 2
 )
