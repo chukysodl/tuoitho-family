@@ -38,6 +38,8 @@ public sealed class ProductionSessionAgentWatchdog(
     IInteractiveSessionAgentRuntime runtime,
     ILogger<ProductionSessionAgentWatchdog> logger) : BackgroundService
 {
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var value = options.Value;
@@ -107,7 +109,7 @@ public sealed class ProductionSessionAgentWatchdog(
                 ManagedUserSid = session.UserSid,
                 TestMode = false
             };
-            File.WriteAllText(path, JsonSerializer.Serialize(updated, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(path, JsonSerializer.Serialize(updated, IndentedJson));
             ProtectionLog.BrowserBound(logger, session.SessionId);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException)
