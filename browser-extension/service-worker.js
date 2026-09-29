@@ -3,7 +3,7 @@ import { TEST_MODE } from "./m4-runtime-config.js";
 const HOST = "com.tuoitho.browserhost";
 const STORAGE_KEY = "tuoithoCustomPolicy";
 const OWNED_IDS_KEY = "tuoithoOwnedDnrRuleIds";
-const unavailable = diagnostic => ({ allowed: TEST_MODE, reason: "SERVICE_UNAVAILABLE", diagnostic: diagnostic || "Tuổi Thơ chưa kết nối." });
+const unavailable = diagnostic => ({ allowed: TEST_MODE, reason: "SERVICE_UNAVAILABLE", diagnostic: diagnostic || "Quản lý thời gian chưa kết nối." });
 
 function native(payload) {
   return new Promise(resolve => chrome.runtime.sendNativeMessage(HOST, { ...payload, extensionId: chrome.runtime.id }, result => {
