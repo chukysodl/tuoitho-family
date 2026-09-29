@@ -38,6 +38,10 @@ foreach ($entry in $projects.GetEnumerator()) {
 
 $extensionDestination = Join-Path $OutputRoot 'BrowserExtension'
 Copy-Item (Join-Path $root 'browser-extension') $extensionDestination -Recurse -Force
+'export const TEST_MODE = false;' | Set-Content (Join-Path $extensionDestination 'm4-runtime-config.js') -Encoding UTF8
+$storeZip = Join-Path $OutputRoot 'QuanLyThoiGian-BrowserExtension-Store.zip'
+if (Test-Path $storeZip) { Remove-Item $storeZip -Force }
+Compress-Archive -Path (Join-Path $extensionDestination '*') -DestinationPath $storeZip -CompressionLevel Optimal
 
 $metadata = [ordered]@{
     BuiltAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
