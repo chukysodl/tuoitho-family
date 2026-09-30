@@ -1,5 +1,5 @@
 param(
-    [string]$InstallDir = (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles) 'QuanLyThoiGian'),
+    [string]$InstallDir = (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) 'QuanLyThoiGian'),
     [int]$WaitSeconds = 12
 )
 
