@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Security.Principal;
+using System.Text;
 using System.Text.Json;
 using TuoiTho.Core.Security;
 
@@ -175,8 +176,8 @@ static MaintenanceRequestResult RequestMaintenance(string password)
 
         pipe.Connect(2500);
 
-        using var reader = new StreamReader(pipe, leaveOpen: true);
-        using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+        using var reader = new StreamReader(pipe, Encoding.UTF8, true, 1024, leaveOpen: true);
+        using var writer = new StreamWriter(pipe, Encoding.UTF8, 1024, leaveOpen: true) { AutoFlush = true };
 
         var request = new TamperMaintenanceRequest(
             TamperMaintenanceProtocol.AuthorizeCommand,
