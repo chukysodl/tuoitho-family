@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Pipes;
 using System.Security.Principal;
 using System.Text.Json;
 using TuoiTho.Core.Security;
@@ -10,7 +11,13 @@ var path = Path.Combine(
     "TuoiTho",
     "parent-auth.json");
 
-if (args.Contains("--set-password", StringComparer.OrdinalIgnoreCase))
+var setPassword = args.Contains("--set-password", StringComparer.OrdinalIgnoreCase);
+var verifyPassword = args.Contains("--verify-password", StringComparer.OrdinalIgnoreCase);
+var authorizeMaintenance =
+    args.Contains("--authorize-maintenance", StringComparer.OrdinalIgnoreCase) ||
+    args.Contains("--authorize-uninstall", StringComparer.OrdinalIgnoreCase);
+
+if (setPassword)
 {
     if (!IsAdministrator())
     {
@@ -22,10 +29,37 @@ if (args.Contains("--set-password", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
-if (args.Contains("--verify-password", StringComparer.OrdinalIgnoreCase) ||
-    args.Contains("--authorize-uninstall", StringComparer.OrdinalIgnoreCase))
+if (verifyPassword || authorizeMaintenance)
 {
-    Environment.ExitCode = VerifyPassword(path) ? 0 : 5;
+    if (authorizeMaintenance && !IsAdministrator())
+    {
+        RelaunchElevated(args);
+        return;
+    }
+
+    var password = PromptVerifiedPassword(path, "Nhập mật khẩu phụ huynh");
+    if (password is null)
+    {
+        Environment.ExitCode = 5;
+        return;
+    }
+
+    if (authorizeMaintenance)
+    {
+        var maintenance = RequestMaintenance(password);
+        if (maintenance == MaintenanceRequestResult.Rejected)
+        {
+            MessageBox.Show(
+                "Service không chấp nhận mở chế độ bảo trì. Hãy kiểm tra mật khẩu và chạy lại.",
+                "Quản lý thời gian",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            Environment.ExitCode = 6;
+            return;
+        }
+    }
+
+    Environment.ExitCode = 0;
     return;
 }
 
@@ -38,10 +72,25 @@ MessageBox.Show(
 static bool SetPassword(string path)
 {
     ParentPasswordRecord? existing = ReadRecord(path);
-    if (existing is not null && !PromptAndVerify(existing, "Nhập mật khẩu phụ huynh hiện tại"))
+    if (existing is not null)
     {
-        MessageBox.Show("Mật khẩu hiện tại không đúng.", "Quản lý thời gian", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        return false;
+        var currentPassword = PromptVerifiedPassword(existing, "Nhập mật khẩu phụ huynh hiện tại");
+        if (currentPassword is null)
+        {
+            MessageBox.Show("Mật khẩu hiện tại không đúng hoặc thao tác đã bị hủy.", "Quản lý thời gian", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
+
+        var maintenance = RequestMaintenance(currentPassword);
+        if (maintenance == MaintenanceRequestResult.Rejected)
+        {
+            MessageBox.Show(
+                "Không thể mở chế độ bảo trì để đổi mật khẩu.",
+                "Quản lý thời gian",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            return false;
+        }
     }
 
     using var dialog = new SetPasswordForm();
@@ -71,7 +120,7 @@ static bool SetPassword(string path)
     }
 }
 
-static bool VerifyPassword(string path)
+static string? PromptVerifiedPassword(string path, string title)
 {
     var record = ReadRecord(path);
     if (record is null)
@@ -81,17 +130,23 @@ static bool VerifyPassword(string path)
             "Quản lý thời gian",
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning);
-        return false;
+        return null;
     }
 
-    return PromptAndVerify(record, "Nhập mật khẩu phụ huynh");
+    return PromptVerifiedPassword(record, title);
 }
 
-static bool PromptAndVerify(ParentPasswordRecord record, string title)
+static string? PromptVerifiedPassword(ParentPasswordRecord record, string title)
 {
     using var dialog = new VerifyPasswordForm(title);
-    return dialog.ShowDialog() == DialogResult.OK &&
-           ParentPasswordHasher.Verify(dialog.Password, record);
+    if (dialog.ShowDialog() != DialogResult.OK)
+    {
+        return null;
+    }
+
+    return ParentPasswordHasher.Verify(dialog.Password, record)
+        ? dialog.Password
+        : null;
 }
 
 static ParentPasswordRecord? ReadRecord(string path)
@@ -105,6 +160,47 @@ static ParentPasswordRecord? ReadRecord(string path)
     catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
     {
         return null;
+    }
+}
+
+static MaintenanceRequestResult RequestMaintenance(string password)
+{
+    try
+    {
+        using var pipe = new NamedPipeClientStream(
+            ".",
+            TamperMaintenanceProtocol.PipeName,
+            PipeDirection.InOut,
+            PipeOptions.None);
+
+        pipe.Connect(2500);
+
+        using var reader = new StreamReader(pipe, leaveOpen: true);
+        using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+
+        var request = new TamperMaintenanceRequest(
+            TamperMaintenanceProtocol.AuthorizeCommand,
+            password,
+            TamperMaintenanceProtocol.DefaultDurationSeconds);
+
+        writer.WriteLine(JsonSerializer.Serialize(request));
+        var responseLine = reader.ReadLine();
+        if (string.IsNullOrWhiteSpace(responseLine))
+        {
+            return MaintenanceRequestResult.Rejected;
+        }
+
+        var response = JsonSerializer.Deserialize<TamperMaintenanceResponse>(responseLine);
+        return response?.Authorized == true
+            ? MaintenanceRequestResult.Authorized
+            : MaintenanceRequestResult.Rejected;
+    }
+    catch (Exception exception) when (
+        exception is IOException or TimeoutException or UnauthorizedAccessException or JsonException)
+    {
+        // Compatibility path for an older/unprotected service or a partially removed install.
+        // The caller still had to pass the parent password before reaching this point.
+        return MaintenanceRequestResult.ServiceUnavailable;
     }
 }
 
@@ -128,6 +224,13 @@ static void RelaunchElevated(string[] currentArgs)
 }
 
 static string Quote(string value) => "\"" + value.Replace("\"", "\\\"", StringComparison.Ordinal) + "\"";
+
+enum MaintenanceRequestResult
+{
+    Authorized,
+    ServiceUnavailable,
+    Rejected
+}
 
 sealed class SetPasswordForm : Form
 {
