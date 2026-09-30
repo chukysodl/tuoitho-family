@@ -48,7 +48,7 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\Parent\TuoiTho.Parent.exe"; T
 Name: "desktopicon"; Description: "Tạo biểu tượng Quản lý thời gian trên Desktop"; Flags: unchecked
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\Installer\install-production.ps1"" -InstallDir ""{app}"" -ChromeExtensionId ""{#ChromeExtensionId}"" -EdgeExtensionId ""{#EdgeExtensionId}"""; StatusMsg: "Đang bật bảo vệ và cấu hình trình duyệt..."; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoLogo -NoProfile -ExecutionPolicy Bypass -File ""{app}\Installer\install-production.ps1"" -InstallDir ""{app}"" -ChromeExtensionId ""{#ChromeExtensionId}"" -EdgeExtensionId ""{#EdgeExtensionId}"""; StatusMsg: "Đang cấu hình dịch vụ bảo vệ (tối đa khoảng 30 giây)..."; Flags: runhidden waituntilterminated logoutput
 Filename: "{app}\Parent\TuoiTho.Parent.exe"; Description: "Mở Quản lý thời gian"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
