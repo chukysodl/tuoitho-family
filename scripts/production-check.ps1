@@ -43,6 +43,27 @@ else {
     Fail 'Service startup' "StartMode=$startMode"
 }
 
+$hardenedAcl = $false
+$aclDeadline = [DateTimeOffset]::UtcNow.AddSeconds([Math]::Max(2, $WaitSeconds))
+do {
+    $sdshow = (& sc.exe sdshow $serviceName 2>&1 | Out-String).Trim()
+    if ($LASTEXITCODE -eq 0 -and
+        $sdshow -match '\(A;;GA;;;SY\)' -and
+        $sdshow -match '\(A;;GRRP;;;BA\)' -and
+        $sdshow -notmatch '\(A;;GA;;;BA\)') {
+        $hardenedAcl = $true
+        break
+    }
+    Start-Sleep -Milliseconds 500
+} while ([DateTimeOffset]::UtcNow -lt $aclDeadline)
+
+if ($hardenedAcl) {
+    Pass 'Tamper protection' 'Service DACL blocks normal Administrator stop/delete/change-config access.'
+}
+else {
+    Fail 'Tamper protection' "Service DACL is not hardened. Current=$sdshow"
+}
+
 $qfailure = (& sc.exe qfailure $serviceName 2>&1 | Out-String)
 if ($LASTEXITCODE -eq 0 -and $qfailure -match 'RESTART') {
     Pass 'Service Recovery' 'Restart action is configured.'
