@@ -108,3 +108,19 @@ User chỉ nên phải test các mốc lớn, không test các bước kỹ thu�
 - M5 requires configuring/deploying a Supabase project and completing the short external-network acceptance in `docs/TASK_008_REMOTE_CONTROL.md`. Keep TestMode enabled during the first remote lock/unlock acceptance.
 - TASK-008B adds a protected machine-wide public Supabase config, one-step CLI deployment scripts, an explicit database health probe, a GitHub Pages workflow for `remote-dashboard`, and a secret-safe runtime preflight. It does not embed API keys in the dashboard or set/disable TestMode.
 - `M5-TEST-GUIDE.txt` is the parent-facing acceptance checklist. Real provider deployment, `M5 REMOTE CHECK: READY`, and phone acceptance remain pending until a parent logs into/creates the Supabase project, supplies the Project Ref and public key, and tests over mobile data. Do not merge TASK-008 into `main` before those checks pass.
+
+
+## 10. TASK-009 Tamper Protection v2 — 2026-09-30
+
+- Branch: `task/009-installer-hardening`.
+- Verified code head: `969ec5cb0bf6160f547d07fb8bd2a74f0644d607`.
+- GitHub Actions: Build and test run `36718235743` PASS; production installer run `36718235745` PASS.
+- Root cause fixed: the previous parent password guarded only the official Inno Setup uninstall entry point, so a third-party uninstaller could bypass that UI flow.
+- The Windows Service now owns the tamper-protection state. Normal mode applies a hardened service DACL and protected install-file ACLs. LocalSystem retains full control; Administrators keep read/start access but do not receive ordinary stop/delete/change-config/full file-write access while protection is locked.
+- AdminTool no longer treats the password as a UI-only gate. After the current parent password is verified, it requests a short maintenance window from the running Service over a local named pipe. The Service independently verifies the stored PBKDF2 parent password before temporarily restoring Administrator maintenance rights.
+- The maintenance window is bounded (default 180 seconds; hard limits 30–600 seconds). After expiry the Service re-applies hardened state.
+- Repair/upgrade and official uninstall use the same maintenance authorization flow. The production check now validates that the hardened service DACL is actually present.
+- Added automated tests for hardened/maintenance service ACL contracts and maintenance-window bounds.
+- Browser force-install policy remains machine-wide where real Store extension IDs are supplied.
+- Acceptance gate: on a real Windows machine, reboot, confirm protection is active, then test (1) Task Manager/Services stop attempts, (2) IObit uninstall without the parent password, (3) official uninstall with the parent password, and (4) reboot persistence.
+- Security boundary: this is strong user-mode hardening. It does not claim to defeat a determined actor already executing arbitrary code as LocalSystem/kernel/PPL. If a third-party remover succeeds through a SYSTEM helper, do not add an unsigned/homebrew kernel driver; use a Standard child account plus Windows policy/app-control controls as the next defensive layer.
