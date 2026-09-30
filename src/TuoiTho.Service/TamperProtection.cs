@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using TuoiTho.Core.Security;
@@ -334,8 +335,8 @@ public sealed class TamperProtectionWorker(
 
     private async Task HandleClientAsync(Stream stream, CancellationToken token)
     {
-        using var reader = new StreamReader(stream, leaveOpen: true);
-        using var writer = new StreamWriter(stream, leaveOpen: true) { AutoFlush = true };
+        using var reader = new StreamReader(stream, Encoding.UTF8, true, 1024, leaveOpen: true);
+        using var writer = new StreamWriter(stream, Encoding.UTF8, 1024, leaveOpen: true) { AutoFlush = true };
 
         var line = await reader.ReadLineAsync(token);
         if (string.IsNullOrWhiteSpace(line) || line.Length > 4096)
