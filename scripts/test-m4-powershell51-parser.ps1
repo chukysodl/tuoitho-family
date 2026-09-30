@@ -8,7 +8,11 @@ $scripts = @(
     'M4-BROWSER-UPDATE.ps1',
     'M4-BROWSER-INSTALL.ps1',
     'M4-BROWSER-CHECK.ps1',
-    'M4-BROWSER-COMMON.ps1'
+    'M4-BROWSER-COMMON.ps1',
+    'install-production.ps1',
+    'uninstall-production.ps1',
+    'production-check.ps1',
+    'build-production.ps1'
 )
 
 foreach ($scriptName in $scripts) {
