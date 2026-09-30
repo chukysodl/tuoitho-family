@@ -72,7 +72,7 @@ begin
   Result := True;
   if FileExists(AdminToolPath()) and FileExists(ParentAuthPath()) then
   begin
-    if not Exec(AdminToolPath(), '--verify-password', '', SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) then
+    if not Exec(AdminToolPath(), '--verify-password --authorize-maintenance', '', SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) then
       Result := False
     else
       Result := ResultCode = 0;
