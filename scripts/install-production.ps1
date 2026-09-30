@@ -4,13 +4,14 @@ param(
     [string]$ChromeExtensionId = '',
     [string]$EdgeExtensionId = ''
 )
+
 $ErrorActionPreference = 'Stop'
 
 trap {
     $message = $_.Exception.Message
     try {
         if ($script:InstallLogPath) {
-            Add-Content -LiteralPath $script:InstallLogPath -Value ("ERROR: " + $message) -Encoding UTF8
+            Add-Content -LiteralPath $script:InstallLogPath -Value ('ERROR: ' + $message) -Encoding UTF8
         }
     } catch { }
     Write-Error $message
@@ -19,9 +20,9 @@ trap {
 
 function Assert-Admin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw 'Cài đặt production yêu cầu quyền Administrator.'
+        throw 'Production install requires Administrator rights.'
     }
 }
 
@@ -36,144 +37,32 @@ function Test-BrowserInstalled([string]$exeName) {
 }
 
 function Assert-ExtensionId([string]$id, [string]$label) {
-    if ($id -notmatch '^[a-p]{32}
-Assert-Admin
-$InstallDir = [IO.Path]::GetFullPath($InstallDir)
-$serviceExe = Join-Path $InstallDir 'Service\TuoiTho.Service.exe'
-$agentExe = Join-Path $InstallDir 'SessionAgent\TuoiTho.SessionAgent.exe'
-$parentExe = Join-Path $InstallDir 'Parent\TuoiTho.Parent.exe'
-$browserHostExe = Join-Path $InstallDir 'BrowserHost\TuoiTho.BrowserHost.exe'
-foreach ($file in @($serviceExe,$agentExe,$parentExe,$browserHostExe)) {
-    if (-not (Test-Path -LiteralPath $file)) { throw "Thiếu thành phần cài đặt: $file" }
-}
-
-$chromePresent = Test-BrowserInstalled 'chrome.exe'
-$edgePresent = Test-BrowserInstalled 'msedge.exe'
-$chromeManaged = $chromePresent -and -not [string]::IsNullOrWhiteSpace($ChromeExtensionId)
-$edgeManaged = $edgePresent -and -not [string]::IsNullOrWhiteSpace($EdgeExtensionId)
-if ($chromeManaged) { Assert-ExtensionId $ChromeExtensionId 'Chrome' }
-if ($edgeManaged) { Assert-ExtensionId $EdgeExtensionId 'Edge' }
-
-$programData = Join-Path $env:ProgramData 'TuoiTho'
-New-Item -ItemType Directory -Path $programData -Force | Out-Null
-$script:InstallLogPath = Join-Path $programData 'install.log'
-Write-InstallLog '=== Bắt đầu cấu hình production ==='
-Write-InstallLog "InstallDir=$InstallDir"
-
-$currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-$production = [ordered]@{
-    TimeTracking = [ordered]@{
-        ProfileId = $ProfileId
-        IdleThresholdMinutes = 5
-        IdlePollIntervalSeconds = 5
+    if ($id -notmatch '^[a-p]{32}$') {
+        throw "$label extension ID is invalid or missing."
     }
-    ParentControl = [ordered]@{
-        AllowedParentSids = @($currentSid)
-    }
-    M1Bootstrap = [ordered]@{
-        Enabled = $false
-    }
-    ProductionProtection = [ordered]@{
-        Enabled = $true
-        ProfileId = $ProfileId
-        SessionAgentPath = $agentExe
-        ParentExecutablePath = $parentExe
-        PollIntervalSeconds = 2
-    }
-}
-$production | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $programData 'production.json') -Encoding UTF8
-
-$extensionIds = @()
-if ($chromeManaged) { $extensionIds += $ChromeExtensionId }
-if ($edgeManaged -and $EdgeExtensionId -notin $extensionIds) { $extensionIds += $EdgeExtensionId }
-Write-InstallLog "Browser detection: ChromePresent=$chromePresent ChromeManaged=$chromeManaged EdgePresent=$edgePresent EdgeManaged=$edgeManaged"
-if ($extensionIds.Count -gt 0) {
-    $browserConfig = [ordered]@{
-        ExtensionId = $extensionIds[0]
-        ProfileId = $ProfileId
-        ManagedSessionId = 0
-        ManagedUserSid = $currentSid
-        TestMode = $false
-        AdditionalExtensionIds = @($extensionIds | Select-Object -Skip 1)
-    }
-    $browserConfig | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $programData 'browser-control.json') -Encoding UTF8
-
-    $origins = @($extensionIds | ForEach-Object { "chrome-extension://$_/" })
-    $native = [ordered]@{
-        name = 'com.tuoitho.browserhost'
-        description = 'Quan ly thoi gian browser control'
-        path = $browserHostExe
-        type = 'stdio'
-        allowed_origins = $origins
-    }
-    $nativeDir = Join-Path $programData 'NativeMessaging'
-    New-Item -ItemType Directory -Path $nativeDir -Force | Out-Null
-    $chromeManifest = Join-Path $nativeDir 'com.tuoitho.browserhost.chrome.json'
-    $edgeManifest = Join-Path $nativeDir 'com.tuoitho.browserhost.edge.json'
-    $native | ConvertTo-Json -Depth 4 | Set-Content $chromeManifest -Encoding UTF8
-    $native | ConvertTo-Json -Depth 4 | Set-Content $edgeManifest -Encoding UTF8
-
-    if ($chromeManaged) {
-        New-Item 'HKLM:\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.tuoitho.browserhost' -Force | Out-Null
-        Set-ItemProperty 'HKLM:\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.tuoitho.browserhost' -Name '(default)' -Value $chromeManifest
-        New-Item 'HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist' -Force | Out-Null
-        Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist' -Name '1000' -Value "$ChromeExtensionId;https://clients2.google.com/service/update2/crx"
-    }
-
-    if ($edgeManaged) {
-        New-Item 'HKLM:\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.tuoitho.browserhost' -Force | Out-Null
-        Set-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.tuoitho.browserhost' -Name '(default)' -Value $edgeManifest
-        New-Item 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist' -Force | Out-Null
-        Set-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist' -Name '1000' -Value "$EdgeExtensionId;https://edge.microsoft.com/extensionwebstorebase/v1/crx"
-    }
-}
-
-& icacls.exe $programData /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' '*S-1-5-32-545:(OI)(CI)(RX)' /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Không thể áp dụng ACL cho dữ liệu production.' }
-
-$serviceName = 'TuoiTho.Service'
-Write-InstallLog 'Bước service: dừng/xóa bản cũ có giới hạn thời gian.'
-Stop-And-Delete-ServiceBounded $serviceName
-
-Write-InstallLog 'Bước service: tạo Windows Service mới.'
-$binaryPath = '"' + $serviceExe + '"'
-Invoke-Sc @('create',$serviceName,'binPath=',$binaryPath,'start=','auto','obj=','LocalSystem','DisplayName=','Quản lý thời gian - Dịch vụ bảo vệ') 'Tạo service'
-Invoke-Sc @('description',$serviceName,'Bảo vệ thời gian, ứng dụng và trình duyệt.') 'Đặt mô tả service'
-Invoke-Sc @('failure',$serviceName,'reset=','86400','actions=','restart/2000/restart/2000/restart/5000') 'Cấu hình Service Recovery'
-Invoke-Sc @('failureflag',$serviceName,'1') 'Bật failure actions'
-
-Write-InstallLog 'Bước service: khởi động có timeout 20 giây.'
-Start-ServiceBounded $serviceName
-
-Write-InstallLog 'PRODUCTION INSTALL CONFIG: PASS'
-Write-Host 'PRODUCTION INSTALL CONFIG: PASS'
-Write-Host "Service: $serviceName (Automatic + Recovery)"
-Write-Host 'SessionAgent watchdog: 2 giây'
-Write-Host "Chrome force install: $chromeManaged"
-Write-Host "Edge force install: $edgeManaged"
-if ($chromePresent -and -not $chromeManaged) { Write-Host 'Chrome: PRE-STORE TEST - chưa ép extension vì chưa có Store ID thật.' }
-if ($edgePresent -and -not $edgeManaged) { Write-Host 'Edge: PRE-STORE TEST - chưa ép extension vì chưa có Store ID thật.' }
-) { throw "$label extension ID chưa hợp lệ hoặc chưa được cấu hình." }
 }
 
 function Write-InstallLog([string]$message) {
     $stamp = [DateTimeOffset]::Now.ToString('yyyy-MM-dd HH:mm:ss.fff zzz')
     $line = "$stamp  $message"
-    try { Add-Content -LiteralPath $script:InstallLogPath -Value $line -Encoding UTF8 } catch { }
+    try {
+        Add-Content -LiteralPath $script:InstallLogPath -Value $line -Encoding UTF8
+    } catch { }
 }
 
-function Get-ServiceSnapshot([string]$name) {
-    Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction SilentlyContinue
+function Get-ServiceState([string]$name) {
+    $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+    if ($null -eq $service) {
+        return 'Deleted'
+    }
+    return $service.Status.ToString()
 }
 
 function Wait-ServiceState([string]$name, [string]$expectedState, [int]$timeoutSeconds) {
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($timeoutSeconds)
     do {
-        $snapshot = Get-ServiceSnapshot $name
-        if ($null -eq $snapshot) {
-            if ($expectedState -eq 'Deleted') { return $true }
-        }
-        elseif ($snapshot.State -eq $expectedState) {
+        $state = Get-ServiceState $name
+        if ($state -eq $expectedState) {
             return $true
         }
         Start-Sleep -Milliseconds 300
@@ -181,70 +70,99 @@ function Wait-ServiceState([string]$name, [string]$expectedState, [int]$timeoutS
     return $false
 }
 
-function Invoke-Sc([string[]]$arguments, [string]$stage) {
-    Write-InstallLog "$stage -> sc.exe $($arguments -join ' ')"
-    $output = & sc.exe @arguments 2>&1
-    $exit = $LASTEXITCODE
-    if ($output) { Write-InstallLog (($output | Out-String).Trim()) }
-    if ($exit -ne 0) { throw "$stage thất bại (sc.exe exit $exit)." }
+function Invoke-Sc {
+    param(
+        [Parameter(Mandatory=$true)][string[]]$Arguments,
+        [Parameter(Mandatory=$true)][string]$Stage
+    )
+
+    Write-InstallLog "$Stage -> sc.exe $($Arguments -join ' ')"
+    $output = & sc.exe @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($output) {
+        Write-InstallLog (($output | Out-String).Trim())
+    }
+    if ($exitCode -ne 0) {
+        throw "$Stage failed. sc.exe exit code: $exitCode"
+    }
 }
 
 function Stop-And-Delete-ServiceBounded([string]$name) {
-    $snapshot = Get-ServiceSnapshot $name
-    if ($null -eq $snapshot) {
-        Write-InstallLog "Không có service cũ: $name"
+    $state = Get-ServiceState $name
+    Write-InstallLog "Existing service state: $state"
+
+    if ($state -eq 'Deleted') {
         return
     }
 
-    Write-InstallLog "Service cũ: state=$($snapshot.State), pid=$($snapshot.ProcessId)"
-    if ($snapshot.State -ne 'Stopped') {
+    if ($state -ne 'Stopped') {
         $output = & sc.exe stop $name 2>&1
         Write-InstallLog (($output | Out-String).Trim())
+
         if (-not (Wait-ServiceState $name 'Stopped' 20)) {
-            $latest = Get-ServiceSnapshot $name
-            throw "Service cũ không dừng trong 20 giây (state=$($latest.State), pid=$($latest.ProcessId)). Hãy khởi động lại Windows rồi chạy bộ cài mới."
+            $latest = Get-ServiceState $name
+            throw "Old service did not stop within 20 seconds. State=$latest. Restart Windows and run the new installer again."
         }
     }
 
-    Invoke-Sc @('delete',$name) 'Xóa service cũ'
+    Invoke-Sc -Arguments @('delete', $name) -Stage 'Delete old service'
+
     if (-not (Wait-ServiceState $name 'Deleted' 12)) {
-        throw 'Service cũ đang chờ xóa quá lâu. Hãy khởi động lại Windows rồi chạy bộ cài mới.'
+        throw 'Old service stayed pending-delete for more than 12 seconds. Restart Windows and run the installer again.'
     }
 }
 
 function Start-ServiceBounded([string]$name) {
     $output = & sc.exe start $name 2>&1
+    $exitCode = $LASTEXITCODE
     Write-InstallLog (($output | Out-String).Trim())
-    if (-not (Wait-ServiceState $name 'Running' 20)) {
-        $latest = Get-ServiceSnapshot $name
-        $state = if ($null -eq $latest) { 'MISSING' } else { $latest.State }
-        throw "Service mới không chạy trong 20 giây (state=$state). Xem $script:InstallLogPath."
+
+    if ($exitCode -ne 0) {
+        throw "Service start command failed. sc.exe exit code: $exitCode"
     }
-    $snapshot = Get-ServiceSnapshot $name
-    Write-InstallLog "Service RUNNING pid=$($snapshot.ProcessId)"
+
+    if (-not (Wait-ServiceState $name 'Running' 20)) {
+        $latest = Get-ServiceState $name
+        throw "New service did not reach RUNNING within 20 seconds. State=$latest. See install.log."
+    }
+
+    Write-InstallLog 'Service state: RUNNING'
 }
 
 Assert-Admin
+
 $InstallDir = [IO.Path]::GetFullPath($InstallDir)
 $serviceExe = Join-Path $InstallDir 'Service\TuoiTho.Service.exe'
 $agentExe = Join-Path $InstallDir 'SessionAgent\TuoiTho.SessionAgent.exe'
 $parentExe = Join-Path $InstallDir 'Parent\TuoiTho.Parent.exe'
 $browserHostExe = Join-Path $InstallDir 'BrowserHost\TuoiTho.BrowserHost.exe'
-foreach ($file in @($serviceExe,$agentExe,$parentExe,$browserHostExe)) {
-    if (-not (Test-Path -LiteralPath $file)) { throw "Thiếu thành phần cài đặt: $file" }
+
+foreach ($file in @($serviceExe, $agentExe, $parentExe, $browserHostExe)) {
+    if (-not (Test-Path -LiteralPath $file)) {
+        throw "Missing installer component: $file"
+    }
 }
+
+$programData = Join-Path $env:ProgramData 'TuoiTho'
+New-Item -ItemType Directory -Path $programData -Force | Out-Null
+$script:InstallLogPath = Join-Path $programData 'install.log'
+Write-InstallLog '=== Production configuration started ==='
+Write-InstallLog "InstallDir=$InstallDir"
 
 $chromePresent = Test-BrowserInstalled 'chrome.exe'
 $edgePresent = Test-BrowserInstalled 'msedge.exe'
 $chromeManaged = $chromePresent -and -not [string]::IsNullOrWhiteSpace($ChromeExtensionId)
 $edgeManaged = $edgePresent -and -not [string]::IsNullOrWhiteSpace($EdgeExtensionId)
-if ($chromeManaged) { Assert-ExtensionId $ChromeExtensionId 'Chrome' }
-if ($edgeManaged) { Assert-ExtensionId $EdgeExtensionId 'Edge' }
 
-$programData = Join-Path $env:ProgramData 'TuoiTho'
-New-Item -ItemType Directory -Path $programData -Force | Out-Null
+if ($chromeManaged) {
+    Assert-ExtensionId $ChromeExtensionId 'Chrome'
+}
+if ($edgeManaged) {
+    Assert-ExtensionId $EdgeExtensionId 'Edge'
+}
 
 $currentSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+
 $production = [ordered]@{
     TimeTracking = [ordered]@{
         ProfileId = $ProfileId
@@ -265,11 +183,21 @@ $production = [ordered]@{
         PollIntervalSeconds = 2
     }
 }
-$production | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $programData 'production.json') -Encoding UTF8
+
+$productionPath = Join-Path $programData 'production.json'
+$production | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $productionPath -Encoding UTF8
+Write-InstallLog "Production config written: $productionPath"
 
 $extensionIds = @()
-if ($chromeManaged) { $extensionIds += $ChromeExtensionId }
-if ($edgeManaged -and $EdgeExtensionId -notin $extensionIds) { $extensionIds += $EdgeExtensionId }
+if ($chromeManaged) {
+    $extensionIds += $ChromeExtensionId
+}
+if ($edgeManaged -and $EdgeExtensionId -notin $extensionIds) {
+    $extensionIds += $EdgeExtensionId
+}
+
+Write-InstallLog "Browser: ChromePresent=$chromePresent ChromeManaged=$chromeManaged EdgePresent=$edgePresent EdgeManaged=$edgeManaged"
+
 if ($extensionIds.Count -gt 0) {
     $browserConfig = [ordered]@{
         ExtensionId = $extensionIds[0]
@@ -279,7 +207,9 @@ if ($extensionIds.Count -gt 0) {
         TestMode = $false
         AdditionalExtensionIds = @($extensionIds | Select-Object -Skip 1)
     }
-    $browserConfig | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $programData 'browser-control.json') -Encoding UTF8
+
+    $browserConfigPath = Join-Path $programData 'browser-control.json'
+    $browserConfig | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $browserConfigPath -Encoding UTF8
 
     $origins = @($extensionIds | ForEach-Object { "chrome-extension://$_/" })
     $native = [ordered]@{
@@ -289,12 +219,13 @@ if ($extensionIds.Count -gt 0) {
         type = 'stdio'
         allowed_origins = $origins
     }
+
     $nativeDir = Join-Path $programData 'NativeMessaging'
     New-Item -ItemType Directory -Path $nativeDir -Force | Out-Null
     $chromeManifest = Join-Path $nativeDir 'com.tuoitho.browserhost.chrome.json'
     $edgeManifest = Join-Path $nativeDir 'com.tuoitho.browserhost.edge.json'
-    $native | ConvertTo-Json -Depth 4 | Set-Content $chromeManifest -Encoding UTF8
-    $native | ConvertTo-Json -Depth 4 | Set-Content $edgeManifest -Encoding UTF8
+    $native | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $chromeManifest -Encoding UTF8
+    $native | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $edgeManifest -Encoding UTF8
 
     if ($chromeManaged) {
         New-Item 'HKLM:\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.tuoitho.browserhost' -Force | Out-Null
@@ -311,31 +242,64 @@ if ($extensionIds.Count -gt 0) {
     }
 }
 
+Write-InstallLog 'Applying ProgramData ACL.'
 & icacls.exe $programData /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)(F)' '*S-1-5-32-544:(OI)(CI)(F)' '*S-1-5-32-545:(OI)(CI)(RX)' /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Không thể áp dụng ACL cho dữ liệu production.' }
+if ($LASTEXITCODE -ne 0) {
+    throw 'Could not apply ProgramData ACL.'
+}
 
 $serviceName = 'TuoiTho.Service'
-$existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-if ($existing) {
-    if ($existing.Status -ne 'Stopped') {
-        Stop-Service -Name $serviceName -Force
-        $existing.WaitForStatus('Stopped',[TimeSpan]::FromSeconds(20))
-    }
-    & sc.exe delete $serviceName | Out-Null
-    Start-Sleep -Milliseconds 800
-}
-New-Service -Name $serviceName -BinaryPathName ('"' + $serviceExe + '"') -DisplayName 'Quản lý thời gian - Dịch vụ bảo vệ' -StartupType Automatic | Out-Null
-& sc.exe description $serviceName 'Bảo vệ thời gian, ứng dụng và trình duyệt.' | Out-Null
-& sc.exe failure $serviceName reset= 86400 actions= restart/2000/restart/2000/restart/5000 | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Không cấu hình được Service Recovery.' }
-& sc.exe failureflag $serviceName 1 | Out-Null
-if ($LASTEXITCODE -ne 0) { throw 'Không bật được failure actions cho service.' }
-Start-Service -Name $serviceName
+Write-InstallLog 'Stopping and deleting old service with hard timeouts.'
+Stop-And-Delete-ServiceBounded $serviceName
 
+$binaryPath = '"' + $serviceExe + '"'
+Invoke-Sc -Arguments @(
+    'create',
+    $serviceName,
+    'binPath=',
+    $binaryPath,
+    'start=',
+    'auto',
+    'obj=',
+    'LocalSystem',
+    'DisplayName=',
+    'Quan ly thoi gian - Dich vu bao ve'
+) -Stage 'Create service'
+
+Invoke-Sc -Arguments @(
+    'description',
+    $serviceName,
+    'Quan ly thoi gian protection service.'
+) -Stage 'Set service description'
+
+Invoke-Sc -Arguments @(
+    'failure',
+    $serviceName,
+    'reset=',
+    '86400',
+    'actions=',
+    'restart/2000/restart/2000/restart/5000'
+) -Stage 'Configure service recovery'
+
+Invoke-Sc -Arguments @(
+    'failureflag',
+    $serviceName,
+    '1'
+) -Stage 'Enable failure actions'
+
+Write-InstallLog 'Starting service with 20 second timeout.'
+Start-ServiceBounded $serviceName
+
+Write-InstallLog 'PRODUCTION INSTALL CONFIG: PASS'
 Write-Host 'PRODUCTION INSTALL CONFIG: PASS'
 Write-Host "Service: $serviceName (Automatic + Recovery)"
-Write-Host 'SessionAgent watchdog: 2 giây'
+Write-Host 'SessionAgent watchdog: 2 seconds'
 Write-Host "Chrome force install: $chromeManaged"
 Write-Host "Edge force install: $edgeManaged"
-if ($chromePresent -and -not $chromeManaged) { Write-Host 'Chrome: PRE-STORE TEST - chưa ép extension vì chưa có Store ID thật.' }
-if ($edgePresent -and -not $edgeManaged) { Write-Host 'Edge: PRE-STORE TEST - chưa ép extension vì chưa có Store ID thật.' }
+
+if ($chromePresent -and -not $chromeManaged) {
+    Write-Host 'Chrome: PRE-STORE TEST - force install skipped because no real Store ID exists yet.'
+}
+if ($edgePresent -and -not $edgeManaged) {
+    Write-Host 'Edge: PRE-STORE TEST - force install skipped because no real Store ID exists yet.'
+}
