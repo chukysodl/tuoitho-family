@@ -82,6 +82,8 @@ builder.Services.Configure<M1BootstrapOptions>(builder.Configuration.GetSection(
 builder.Services.Configure<ProductionProtectionOptions>(builder.Configuration.GetSection(ProductionProtectionOptions.SectionName));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<PolicyChangeSignal>();
+builder.Services.AddSingleton<ITamperProtectionPlatform, WindowsTamperProtectionPlatform>();
+builder.Services.AddSingleton<TamperMaintenanceCoordinator>();
 builder.Services.AddSingleton<ParentControlService>(services => new ParentControlService(services.GetRequiredService<IDeviceTimePolicyStore>(), services.GetRequiredService<ITimeUsageStore>(), services.GetRequiredService<IClock>(), services.GetRequiredService<DeviceTimePolicyEngine>(), services.GetRequiredService<PolicyChangeSignal>(), services.GetRequiredService<ActivitySampleCache>(), services.GetRequiredService<WindowsSessionEventSource>(), services.GetRequiredService<SessionTimeEngine>(), services.GetRequiredService<IAppPolicyStore>(), services.GetRequiredService<AppPolicyEngine>(), services.GetRequiredService<IManagedSessionAppDiscovery>(), services.GetRequiredService<AppEnforcementState>(), services.GetRequiredService<AppEnforcementAuditTrail>(), services.GetRequiredService<IWebPolicyStore>(), services.GetRequiredService<BrowserRuntimeStatusCache>(), services.GetRequiredService<RemoteDeviceIdentityManager>(), services.GetRequiredService<IRemotePolicyStore>(), services.GetRequiredService<RemoteControlRuntimeStatusCache>()));
 builder.Services.AddSingleton<DeviceTimePolicyEngine>();
 builder.Services.AddSingleton<LocalSessionWarningPublisher>();
@@ -108,6 +110,7 @@ builder.Services.AddSingleton<SessionTimeEngine>(services =>
 });
 builder.Services.AddHostedService<M1Bootstrapper>();
 builder.Services.AddHostedService<ProductionSessionAgentWatchdog>();
+builder.Services.AddHostedService<TamperProtectionWorker>();
 builder.Services.AddHostedService<RemoteControlWorker>();
 builder.Services.AddHostedService<Worker>();
 builder.Services.AddHostedService<ParentControlListener>();
