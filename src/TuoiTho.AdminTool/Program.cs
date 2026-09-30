@@ -75,7 +75,7 @@ static bool SetPassword(string path)
     ParentPasswordRecord? existing = ReadRecord(path);
     if (existing is not null)
     {
-        var currentPassword = PromptVerifiedPassword(existing, "Nhập mật khẩu phụ huynh hiện tại");
+        var currentPassword = PromptVerifiedPasswordRecord(existing, "Nhập mật khẩu phụ huynh hiện tại");
         if (currentPassword is null)
         {
             MessageBox.Show("Mật khẩu hiện tại không đúng hoặc thao tác đã bị hủy.", "Quản lý thời gian", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -134,10 +134,10 @@ static string? PromptVerifiedPassword(string path, string title)
         return null;
     }
 
-    return PromptVerifiedPassword(record, title);
+    return PromptVerifiedPasswordRecord(record, title);
 }
 
-static string? PromptVerifiedPassword(ParentPasswordRecord record, string title)
+static string? PromptVerifiedPasswordRecord(ParentPasswordRecord record, string title)
 {
     using var dialog = new VerifyPasswordForm(title);
     if (dialog.ShowDialog() != DialogResult.OK)
