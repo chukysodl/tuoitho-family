@@ -169,7 +169,7 @@ public sealed class TamperMaintenanceCoordinator(
     IOptions<ProductionProtectionOptions> protectionOptions,
     ITamperProtectionPlatform platform,
     TimeProvider timeProvider,
-    ILogger<TamperMaintenanceCoordinator> logger)
+    ILogger<TamperMaintenanceCoordinator> logger) : IDisposable
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private bool hardened;
@@ -257,6 +257,8 @@ public sealed class TamperMaintenanceCoordinator(
         TamperLog.AuthorizationAccepted(logger, expires);
         return new TamperMaintenanceResponse(true, "Maintenance window opened.", expires);
     }
+
+    public void Dispose() => gate.Dispose();
 
     private static ParentPasswordRecord? ReadPasswordRecord(string path)
     {
