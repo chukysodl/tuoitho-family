@@ -12,7 +12,7 @@ function Pass([string]$name, [string]$detail) {
 
 function Fail([string]$name, [string]$detail) {
     Write-Host "[FAIL] $name - $detail"
-    $failures.Add("$name: $detail")
+    $failures.Add("$($name): $detail")
 }
 
 $serviceName = 'TuoiTho.Service'
