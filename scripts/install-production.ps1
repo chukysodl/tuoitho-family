@@ -6,6 +6,17 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
+trap {
+    $message = $_.Exception.Message
+    try {
+        if ($script:InstallLogPath) {
+            Add-Content -LiteralPath $script:InstallLogPath -Value ("ERROR: " + $message) -Encoding UTF8
+        }
+    } catch { }
+    Write-Error $message
+    exit 1
+}
+
 function Assert-Admin {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
