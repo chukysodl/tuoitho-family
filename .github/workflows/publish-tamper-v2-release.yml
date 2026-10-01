@@ -1,0 +1,67 @@
+name: Publish Tamper V2 test release
+
+on:
+  push:
+    branches:
+      - task/009-installer-hardening
+    paths:
+      - '.github/workflows/publish-tamper-v2-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build and test
+        shell: pwsh
+        run: |
+          dotnet restore TuoiTho.sln
+          dotnet build TuoiTho.sln --configuration Release --no-restore
+          dotnet test TuoiTho.sln --configuration Release --no-build --no-restore
+
+      - name: Publish self-contained components
+        shell: pwsh
+        run: ./scripts/build-production.ps1
+
+      - name: Install Inno Setup compiler
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)) 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw "ISCC not found: $iscc" }
+          & $iscc "/DChromeExtensionId=" "/DEdgeExtensionId=" "installer\QuanLyThoiGian.iss"
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed.' }
+
+      - name: Build release zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path artifacts\release -Force | Out-Null
+          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_TamperV2_Setup.exe -Force
+          Copy-Item artifacts\production\QuanLyThoiGian-BrowserExtension-Store.zip artifacts\release\BrowserExtension-Store.zip -Force
+          Copy-Item artifacts\production\build-info.json artifacts\release\build-info.json -Force
+          Compress-Archive -Path artifacts\release\QLTG_TamperV2_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_TamperV2.zip -Force
+
+      - name: Publish GitHub pre-release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'tamper-v2-test-20261001'
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) { gh release delete $tag --yes --cleanup-tag }
+          gh release create $tag artifacts\release\QLTG_TamperV2_Setup.exe artifacts\release\QLTG_TamperV2.zip --target "${{ github.sha }}" --title "Quan ly thoi gian - Tamper Protection v2 Test" --notes "Pre-release test build for TASK-009. Build + tests run before publishing. Test reboot, Services stop attempt, Task Manager, IObit uninstall without parent password, official uninstall with parent password." --prerelease
