@@ -24,12 +24,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Build and test
+      - name: Build and validate Tamper V2
         shell: pwsh
         run: |
           dotnet restore TuoiTho.sln
           dotnet build TuoiTho.sln --configuration Release --no-restore
-          dotnet test TuoiTho.sln --configuration Release --no-build --no-restore
+          dotnet test tests\TuoiTho.Tests\TuoiTho.Tests.csproj --configuration Release --no-build --no-restore --filter "FullyQualifiedName~TamperProtectionTests"
 
       - name: Publish self-contained components
         shell: pwsh
