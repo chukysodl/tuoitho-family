@@ -13,10 +13,32 @@ var path = Path.Combine(
     "parent-auth.json");
 
 var setPassword = args.Contains("--set-password", StringComparer.OrdinalIgnoreCase);
+var repairAuth = args.Contains("--repair-auth", StringComparer.OrdinalIgnoreCase);
+var authState = args.Contains("--auth-state", StringComparer.OrdinalIgnoreCase);
 var verifyPassword = args.Contains("--verify-password", StringComparer.OrdinalIgnoreCase);
 var authorizeMaintenance =
     args.Contains("--authorize-maintenance", StringComparer.OrdinalIgnoreCase) ||
     args.Contains("--authorize-uninstall", StringComparer.OrdinalIgnoreCase);
+
+if (authState)
+{
+    Environment.ExitCode = ReadRecord(path) is not null
+        ? 0
+        : File.Exists(path) ? 11 : 10;
+    return;
+}
+
+if (repairAuth)
+{
+    if (!IsAdministrator())
+    {
+        RelaunchElevated(args);
+        return;
+    }
+
+    Environment.ExitCode = RepairAuth(path) ? 0 : 7;
+    return;
+}
 
 if (setPassword)
 {
@@ -69,6 +91,110 @@ MessageBox.Show(
     "Quản lý thời gian",
     MessageBoxButtons.OK,
     MessageBoxIcon.Information);
+
+static bool RepairAuth(string path)
+{
+    if (ReadRecord(path) is not null)
+    {
+        MessageBox.Show(
+            "Mật khẩu phụ huynh hiện tại vẫn hợp lệ. Hãy dùng mật khẩu hiện tại để Repair.",
+            "Quản lý thời gian",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+        return false;
+    }
+
+    using var dialog = new SetPasswordForm("Khôi phục mật khẩu phụ huynh");
+    if (dialog.ShowDialog() != DialogResult.OK) return false;
+
+    try
+    {
+        ParentPasswordHasher.ValidatePassword(dialog.Password);
+        if (!string.Equals(dialog.Password, dialog.ConfirmPassword, StringComparison.Ordinal))
+        {
+            MessageBox.Show(
+                "Hai lần nhập mật khẩu không khớp.",
+                "Quản lý thời gian",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return false;
+        }
+
+        var record = ParentPasswordHasher.Create(dialog.Password);
+        var directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+
+        if (File.Exists(path))
+        {
+            try { File.Delete(path); }
+            catch (UnauthorizedAccessException)
+            {
+                RunAcl(directory, grantAdminFull: true);
+                File.Delete(path);
+            }
+        }
+
+        var temp = path + ".repair.tmp";
+        File.WriteAllText(temp, JsonSerializer.Serialize(record));
+        File.Move(temp, path, true);
+        HardenAuthFile(path);
+
+        var maintenance = RequestMaintenance(dialog.Password);
+        if (maintenance == MaintenanceRequestResult.Rejected)
+        {
+            MessageBox.Show(
+                "Đã khôi phục mật khẩu nhưng Service chưa chấp nhận chế độ bảo trì. Hãy chạy Setup lại một lần nữa.",
+                "Quản lý thời gian",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return false;
+        }
+
+        MessageBox.Show(
+            "Đã khôi phục mật khẩu phụ huynh. Setup sẽ tiếp tục.",
+            "Quản lý thời gian",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+        return true;
+    }
+    catch (Exception exception) when (
+        exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException)
+    {
+        MessageBox.Show(
+            "Không thể khôi phục mật khẩu: " + exception.Message,
+            "Quản lý thời gian",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error);
+        return false;
+    }
+}
+
+static void HardenAuthFile(string path)
+{
+    using var process = Process.Start(new ProcessStartInfo
+    {
+        FileName = "icacls.exe",
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        Arguments = "\"" + path + "\" /inheritance:r /grant:r *S-1-5-18:(F) *S-1-5-32-544:(R) /C"
+    }) ?? throw new InvalidOperationException("Không thể chạy icacls.");
+    process.WaitForExit();
+    if (process.ExitCode != 0)
+        throw new InvalidOperationException("Không thể khóa quyền file mật khẩu.");
+}
+
+static void RunAcl(string directory, bool grantAdminFull)
+{
+    var admin = grantAdminFull ? "(OI)(CI)(F)" : "(OI)(CI)(RX)";
+    using var process = Process.Start(new ProcessStartInfo
+    {
+        FileName = "icacls.exe",
+        UseShellExecute = false,
+        CreateNoWindow = true,
+        Arguments = "\"" + directory + "\" /grant:r *S-1-5-32-544:" + admin + " /C"
+    }) ?? throw new InvalidOperationException("Không thể chạy icacls.");
+    process.WaitForExit();
+}
 
 static bool SetPassword(string path)
 {
@@ -238,9 +364,9 @@ sealed class SetPasswordForm : Form
     private readonly TextBox first = PasswordBox();
     private readonly TextBox second = PasswordBox();
 
-    public SetPasswordForm()
+    public SetPasswordForm(string title = "Thiết lập mật khẩu phụ huynh")
     {
-        Text = "Thiết lập mật khẩu phụ huynh";
+        Text = title;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
