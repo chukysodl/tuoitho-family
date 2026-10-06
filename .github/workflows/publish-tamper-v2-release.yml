@@ -1,9 +1,9 @@
-name: Publish Postinstall Self-Heal test release
+name: Publish Account Protection test release
 
 on:
   push:
     branches:
-      - task/009d-postinstall-selfheal
+      - task/009e-account-protection
     paths:
       - '.github/workflows/publish-tamper-v2-release.yml'
   workflow_dispatch:
@@ -24,12 +24,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Build and validate Postinstall Self-Heal
+      - name: Build and validate Account Protection
         shell: pwsh
         run: |
           dotnet restore TuoiTho.sln
           dotnet build TuoiTho.sln --configuration Release --no-restore
-          dotnet test tests\TuoiTho.Tests\TuoiTho.Tests.csproj --configuration Release --no-build --no-restore --filter "FullyQualifiedName~TamperProtectionTests|FullyQualifiedName~TimeGuardrailTests|FullyQualifiedName~ParentTimePolicyTests|FullyQualifiedName~WebPolicyTests|FullyQualifiedName~BrowserRuntimeAndContentTests"
+          dotnet test tests\TuoiTho.Tests\TuoiTho.Tests.csproj --configuration Release --no-build --no-restore --filter "FullyQualifiedName~TamperProtectionTests|FullyQualifiedName~TimeGuardrailTests|FullyQualifiedName~ParentTimePolicyTests|FullyQualifiedName~WebPolicyTests|FullyQualifiedName~BrowserRuntimeAndContentTests|FullyQualifiedName~AccountProtectionTests|FullyQualifiedName~ProductionProtectionTests"
 
       - name: Publish self-contained components
         shell: pwsh
@@ -51,17 +51,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path artifacts\release -Force | Out-Null
-          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.3_SelfHeal_Setup.exe -Force
+          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.4_AccountProtection_Setup.exe -Force
           Copy-Item artifacts\production\QuanLyThoiGian-BrowserExtension-Store.zip artifacts\release\BrowserExtension-Store.zip -Force
           Copy-Item artifacts\production\build-info.json artifacts\release\build-info.json -Force
-          Compress-Archive -Path artifacts\release\QLTG_1.0.3_SelfHeal_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.3_SelfHeal.zip -Force
+          Compress-Archive -Path artifacts\release\QLTG_1.0.4_AccountProtection_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.4_AccountProtection.zip -Force
 
       - name: Publish GitHub pre-release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'postinstall-selfheal-test-20261006'
+          $tag = 'account-protection-test-20261006'
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) { gh release delete $tag --yes --cleanup-tag }
-          gh release create $tag artifacts\release\QLTG_1.0.3_SelfHeal_Setup.exe artifacts\release\QLTG_1.0.3_SelfHeal.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.3 - Postinstall Self-Heal" --notes "Pre-release for TASK-009D. Fixes false post-install protection failures by validating effective Service DACL rights instead of exact SDDL text, keeps the core Service alive when SessionAgent launch fails, self-heals SessionAgent in the interactive session, and distinguishes core failures from interactive warnings. Includes all 1.0.2 repair, time guardrail, Tamper Protection, and YouTube/TikTok keyword features." --prerelease
+          gh release create $tag artifacts\release\QLTG_1.0.4_AccountProtection_Setup.exe artifacts\release\QLTG_1.0.4_AccountProtection.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.4 - Account Protection Mode" --notes "Pre-release for TASK-009E. Adds Account Protection Mode: parent Administrator vs child Standard User separation, managed child SID persistence, UAC safety checks, automatic removal of Administrator membership from the selected child account, and Service logic that never rebinds child enforcement to an Administrator session. Includes all prior Tamper Protection, repair, time guardrail, postinstall self-heal, and YouTube/TikTok keyword features." --prerelease
