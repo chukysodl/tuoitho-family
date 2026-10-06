@@ -1,5 +1,5 @@
 #define AppName "Quản lý thời gian"
-#define AppVersion "1.0.1"
+#define AppVersion "1.0.2"
 #define AppPublisher "Local Family"
 #ifndef ChromeExtensionId
   #define ChromeExtensionId ""
@@ -35,6 +35,7 @@ Source: "..\artifacts\production\SessionAgent\*"; DestDir: "{app}\SessionAgent";
 Source: "..\artifacts\production\Parent\*"; DestDir: "{app}\Parent"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\artifacts\production\BrowserHost\*"; DestDir: "{app}\BrowserHost"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\artifacts\production\AdminTool\*"; DestDir: "{app}\AdminTool"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\artifacts\production\AdminTool\TuoiTho.AdminTool.exe"; DestDir: "{tmp}"; DestName: "QLTG.RepairAdminTool.exe"; Flags: dontcopy
 Source: "..\scripts\install-production.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
 Source: "..\scripts\uninstall-production.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
 Source: "..\scripts\production-check.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
@@ -65,25 +66,78 @@ begin
   Result := ExpandConstant('{autopf}\QuanLyThoiGian\AdminTool\TuoiTho.AdminTool.exe');
 end;
 
-function VerifyExistingParentPassword(): Boolean;
+function TemporaryAdminToolPath(): String;
+begin
+  Result := ExpandConstant('{tmp}\QLTG.RepairAdminTool.exe');
+end;
+
+function ExistingInstallPresent(): Boolean;
+begin
+  Result := FileExists(AdminToolPath()) or
+    FileExists(ExpandConstant('{autopf}\QuanLyThoiGian\Service\TuoiTho.Service.exe'));
+end;
+
+function PrepareRepairAuthorization(): Boolean;
 var
+  StateCode: Integer;
   ResultCode: Integer;
+  Tool: String;
 begin
   Result := True;
-  if FileExists(AdminToolPath()) and FileExists(ParentAuthPath()) then
+  if not ExistingInstallPresent() then
+    exit;
+
+  ExtractTemporaryFile('QLTG.RepairAdminTool.exe');
+  Tool := TemporaryAdminToolPath();
+
+  if not FileExists(Tool) then
   begin
-    if not Exec(AdminToolPath(), '--verify-password --authorize-maintenance', '', SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) then
-      Result := False
-    else
-      Result := ResultCode = 0;
+    MsgBox('Không thể nạp công cụ Repair mật khẩu phụ huynh.', mbError, MB_OK);
+    Result := False;
+    exit;
+  end;
+
+  if not Exec(Tool, '--auth-state', '', SW_HIDE, ewWaitUntilTerminated, StateCode) then
+  begin
+    MsgBox('Không thể kiểm tra trạng thái mật khẩu phụ huynh.', mbError, MB_OK);
+    Result := False;
+    exit;
+  end;
+
+  if StateCode = 0 then
+  begin
+    Result := Exec(Tool, '--verify-password --authorize-maintenance', '', SW_SHOWNORMAL,
+      ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
     if not Result then
       MsgBox('Cần mật khẩu phụ huynh để repair hoặc nâng cấp Quản lý thời gian.', mbError, MB_OK);
+    exit;
   end;
+
+  if (StateCode = 10) or (StateCode = 11) then
+  begin
+    if MsgBox(
+      'Phát hiện bản cài cũ nhưng mật khẩu phụ huynh đang thiếu hoặc bị hỏng.' + #13#10 +
+      'Bạn có muốn khôi phục mật khẩu để tiếp tục Repair không?',
+      mbConfirmation, MB_YESNO) <> IDYES then
+    begin
+      Result := False;
+      exit;
+    end;
+
+    Result := Exec(Tool, '--repair-auth', '', SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode)
+      and (ResultCode = 0);
+    if not Result then
+      MsgBox('Khôi phục mật khẩu phụ huynh chưa thành công. Setup chưa thay đổi bản cài hiện tại.', mbError, MB_OK);
+    exit;
+  end;
+
+  MsgBox('Không xác định được trạng thái mật khẩu phụ huynh.', mbError, MB_OK);
+  Result := False;
 end;
 
 function InitializeSetup(): Boolean;
 begin
-  Result := VerifyExistingParentPassword();
+  Result := PrepareRepairAuthorization();
 end;
 
 function InitializeUninstall(): Boolean;
