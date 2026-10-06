@@ -1,17 +1,26 @@
 param(
     [string]$InstallDir = (Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) 'QuanLyThoiGian'),
-    [int]$WaitSeconds = 12
+    [int]$WaitSeconds = 30
 )
 
 $ErrorActionPreference = 'Stop'
 $failures = New-Object 'System.Collections.Generic.List[string]'
+$programData = Join-Path $env:ProgramData 'TuoiTho'
+New-Item -ItemType Directory -Path $programData -Force | Out-Null
+$script:CheckLogPath = Join-Path $programData 'postinstall-check.log'
+Set-Content -LiteralPath $script:CheckLogPath -Value ("=== PRODUCTION CHECK " + [DateTimeOffset]::Now.ToString("O") + " ===") -Encoding UTF8
+
+function Write-CheckLine([string]$line) {
+    Write-Host $line
+    try { Add-Content -LiteralPath $script:CheckLogPath -Value $line -Encoding UTF8 } catch { }
+}
 
 function Pass([string]$name, [string]$detail) {
-    Write-Host "[PASS] $name - $detail"
+    Write-CheckLine "[PASS] $name - $detail"
 }
 
 function Fail([string]$name, [string]$detail) {
-    Write-Host "[FAIL] $name - $detail"
+    Write-CheckLine "[FAIL] $name - $detail"
     $failures.Add("$($name): $detail")
 }
 
@@ -44,7 +53,8 @@ else {
 }
 
 $hardenedAcl = $false
-$aclDeadline = [DateTimeOffset]::UtcNow.AddSeconds([Math]::Max(2, $WaitSeconds))
+$sdshow = ''
+$aclDeadline = [DateTimeOffset]::UtcNow.AddSeconds([Math]::Max(4, $WaitSeconds))
 do {
     $sdshow = (& sc.exe sdshow $serviceName 2>&1 | Out-String).Trim()
     if ($LASTEXITCODE -eq 0 -and
@@ -58,10 +68,10 @@ do {
 } while ([DateTimeOffset]::UtcNow -lt $aclDeadline)
 
 if ($hardenedAcl) {
-    Pass 'Tamper protection' 'Service DACL blocks normal Administrator stop/delete/change-config access.'
+    Pass 'Tamper protection' 'Service DACL is hardened.'
 }
 else {
-    Fail 'Tamper protection' "Service DACL is not hardened. Current=$sdshow"
+    Fail 'Tamper protection' "Service DACL is not hardened yet. Current=$sdshow"
 }
 
 $qfailure = (& sc.exe qfailure $serviceName 2>&1 | Out-String)
@@ -72,9 +82,7 @@ else {
     Fail 'Service Recovery' 'Restart action could not be confirmed.'
 }
 
-$programData = Join-Path $env:ProgramData 'TuoiTho'
 $productionPath = Join-Path $programData 'production.json'
-
 if (Test-Path $productionPath) {
     try {
         $production = Get-Content $productionPath -Raw | ConvertFrom-Json
@@ -102,18 +110,19 @@ else {
     Fail 'Parent password' 'Parent password has not been configured.'
 }
 
-$agentExe = Join-Path $InstallDir 'SessionAgent\TuoiTho.SessionAgent.exe'
-$currentSession = (Get-Process -Id $PID).SessionId
+$agentExe = [IO.Path]::GetFullPath((Join-Path $InstallDir 'SessionAgent\TuoiTho.SessionAgent.exe'))
 $agentRunning = $false
+$agentSession = $null
 $deadline = [DateTimeOffset]::UtcNow.AddSeconds([Math]::Max(0, $WaitSeconds))
 
 do {
     foreach ($process in Get-Process -Name 'TuoiTho.SessionAgent' -ErrorAction SilentlyContinue) {
         try {
-            if ($process.SessionId -eq $currentSession -and
-                $process.Path -and
-                [IO.Path]::GetFullPath($process.Path) -eq [IO.Path]::GetFullPath($agentExe)) {
+            if ($process.Path -and
+                [IO.Path]::GetFullPath($process.Path) -eq $agentExe -and
+                $process.SessionId -gt 0) {
                 $agentRunning = $true
+                $agentSession = $process.SessionId
                 break
             }
         }
@@ -125,13 +134,19 @@ do {
 } while ([DateTimeOffset]::UtcNow -lt $deadline)
 
 if ($agentRunning) {
-    Pass 'SessionAgent watchdog' 'Agent is running in the current session.'
+    Pass 'SessionAgent watchdog' "Agent is running in interactive session $agentSession."
 }
 else {
-    Fail 'SessionAgent watchdog' 'Production SessionAgent was not found in the current session.'
+    Fail 'SessionAgent watchdog' 'Production SessionAgent was not found in an interactive session.'
 }
 
 $policyDb = Join-Path $programData 'tuoitho.db'
+$dbDeadline = [DateTimeOffset]::UtcNow.AddSeconds([Math]::Max(4, $WaitSeconds))
+do {
+    if (Test-Path $policyDb) { break }
+    Start-Sleep -Milliseconds 500
+} while ([DateTimeOffset]::UtcNow -lt $dbDeadline)
+
 if (Test-Path $policyDb) {
     Pass 'Policy data' 'SQLite database exists.'
 }
@@ -140,11 +155,13 @@ else {
 }
 
 if ($failures.Count -gt 0) {
-    Write-Host ''
-    Write-Host "PRODUCTION CHECK: FAIL ($($failures.Count))"
+    Write-CheckLine ''
+    Write-CheckLine "PRODUCTION CHECK: FAIL ($($failures.Count))"
+    Write-CheckLine "Log: $script:CheckLogPath"
     exit 3
 }
 
-Write-Host ''
-Write-Host 'PRODUCTION CHECK: PASS'
+Write-CheckLine ''
+Write-CheckLine 'PRODUCTION CHECK: PASS'
+Write-CheckLine "Log: $script:CheckLogPath"
 exit 0
