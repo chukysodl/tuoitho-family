@@ -13,6 +13,7 @@
 | TASK-009 | IMPLEMENTED / AWAITING USER TAMPER ACCEPTANCE — Service DACL + install ACL + password-authorized maintenance window | task/009-installer-hardening | code head `969ec5cb0bf6160f547d07fb8bd2a74f0644d607`; Build and test Actions `36718235743` PASS; production installer Actions `36718235745` PASS | pending IObit / Services / Task Manager / reboot test |
 | TASK-009B | IMPLEMENTED / AWAITING USER ACCEPTANCE — installer post-check repair + boot-time limit + daily blocked hours | task/009b-time-guardrails | Build/Test/System Check PASS; GitHub pre-release `time-guardrails-test-20261006` PASS | yes |
 | TASK-009C | IMPLEMENTED / AWAITING USER ACCEPTANCE — repair broken parent-auth + YouTube/TikTok blocked search keywords | task/009c-installer-keywords | Full Build/Test/System Check Actions `37451574738` PASS; pre-release `repair-keywords-test-20261006` PASS | yes |
+| TASK-009D | IMPLEMENTED / AWAITING USER ACCEPTANCE — semantic DACL post-check + SessionAgent self-heal | task/009d-postinstall-selfheal | Full Build/Test/System Check PASS; pre-release `postinstall-selfheal-test-20261006` PASS | yes |
 | TASK-010 | PENDING | task/010-community-release | — | RC1 |
 
 Verified integrated baseline: `main` at `cf5d3a7954690a6af689ea78adfb1f2c1b4a3dd7`; GitHub Actions run `35803055541` PASS. TASK-008 may proceed because its declared dependency is TASK-005, which is merged and validated. TASK-007 search remains separate work.
@@ -31,3 +32,11 @@ TASK-009C:
 - Search queries are evaluated locally inside browser extension 0.3.0. They are not added to BrowserNavigationRequest, are not sent to the Windows Service, and are not persisted as browsing/search history.
 - YouTube checks committed /results?search_query=... routes. TikTok checks /search routes using q/keyword/search_query parameters.
 - The extension refreshes policy revision before keyword evaluation so newly blocked terms take effect on the next search.
+
+
+TASK-009D:
+- Post-install protection no longer compares exact SDDL text. It parses the effective Administrators service ACE and rejects dangerous Stop/ChangeConfig/Delete/WriteDACL/WriteOwner/full-control rights.
+- SessionAgent launch failures no longer terminate the core Windows Service; the watchdog logs and retries.
+- Post-install check attempts an interactive SessionAgent self-heal launch, but a delayed interactive agent is a warning instead of a false core-install failure.
+- Core failures are separated from warnings and written to ProgramData/TuoiTho/postinstall-summary.txt; Setup 1.0.3 shows the exact core failure summary when needed.
+- PowerShell checker text is ASCII-safe for Windows PowerShell 5.1 parsing.
