@@ -207,4 +207,13 @@ internal static partial class ProtectionLog
 
     [LoggerMessage(EventId = 2806, Level = LogLevel.Warning, Message = "SessionAgent watchdog cycle failed; core service remains active and will retry.")]
     public static partial void WatchdogCycleFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 2807, Level = LogLevel.Information, Message = "Administrator session {SessionId} SID {UserSid} is not child-managed.")]
+    public static partial void AdministratorSessionSkipped(ILogger logger, int sessionId, string userSid);
+
+    [LoggerMessage(EventId = 2808, Level = LogLevel.Information, Message = "Interactive session {SessionId} SID {UserSid} is not the configured child account.")]
+    public static partial void NonChildSessionSkipped(ILogger logger, int sessionId, string userSid);
+
+    [LoggerMessage(EventId = 2809, Level = LogLevel.Error, Message = "Configured child session {SessionId} SID {UserSid} still has Administrator membership; child enforcement is held until the account is Standard User.")]
+    public static partial void ManagedChildStillAdministrator(ILogger logger, int sessionId, string userSid);
 }
