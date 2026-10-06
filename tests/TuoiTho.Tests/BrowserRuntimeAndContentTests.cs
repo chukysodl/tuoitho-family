@@ -71,6 +71,26 @@ public sealed class BrowserRuntimeAndContentTests
         Assert.DoesNotContain("document.documentElement.innerHTML", script, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void SearchKeywordBlockingStaysInsideTheExtension()
+    {
+        var worker = File.ReadAllText(Path.Combine(RepositoryRoot(), "browser-extension", "service-worker.js"));
+        var youtube = File.ReadAllText(Path.Combine(RepositoryRoot(), "browser-extension", "content", "youtube.js"));
+        var tiktok = File.ReadAllText(Path.Combine(RepositoryRoot(), "browser-extension", "content", "tiktok.js"));
+
+        Assert.Contains("tuoitho-keyword-check", worker, StringComparison.Ordinal);
+        Assert.Contains("blockedKeywordFor", worker, StringComparison.Ordinal);
+        Assert.Contains("YouTubeSearchKeyword", worker, StringComparison.Ordinal);
+        Assert.Contains("TikTokSearchKeyword", worker, StringComparison.Ordinal);
+        Assert.Contains("search_query", youtube, StringComparison.Ordinal);
+        Assert.Contains("tuoitho-keyword-check", youtube, StringComparison.Ordinal);
+        Assert.Contains("params.get(\"q\")", tiktok, StringComparison.Ordinal);
+        Assert.Contains("tuoitho-keyword-check", tiktok, StringComparison.Ordinal);
+        Assert.DoesNotContain("query:", worker.Split("native(message.payload)", StringSplitOptions.None)[0], StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("document.documentElement.innerHTML", tiktok, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void M4CheckSeparatesRegistrationRuntimeAndPolicyProbe()
     {
