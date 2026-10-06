@@ -77,7 +77,7 @@ public sealed class ProductionProtectionTests
     public async Task RunningAgentIsNotDuplicated()
     {
         var store = new Store(Policy(parentLock: false) with { ManagedSessionId = 7, ManagedUserSid = "S-1-5-21-child", TestMode = false });
-        var runtime = new Runtime(new ActiveInteractiveSession(7, "S-1-5-21-child")) { Running = true };
+        var runtime = new Runtime(new ActiveInteractiveSession(7, "S-1-5-21-child", false)) { Running = true };
         var options = new ProductionProtectionOptions
         {
             Enabled = true,
