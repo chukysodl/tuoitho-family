@@ -48,7 +48,7 @@ public sealed class ProductionProtectionTests
         };
         var store = new Store(original);
         var runtime = new Runtime(
-            new ActiveInteractiveSession(9, "S-1-5-21-parent", true));
+            new ActiveInteractiveSession(9, "S-1-5-21-parent", true)) { Running = true };
         var options = new ProductionProtectionOptions
         {
             Enabled = true,
@@ -70,6 +70,7 @@ public sealed class ProductionProtectionTests
         Assert.Equal(7, store.Current!.ManagedSessionId);
         Assert.Equal("S-1-5-21-child", store.Current.ManagedUserSid);
         Assert.Equal(0, runtime.Launches);
+        Assert.Equal(1, runtime.Stops);
     }
 
     [Fact]
@@ -111,8 +112,10 @@ public sealed class ProductionProtectionTests
     {
         public bool Running { get; init; }
         public int Launches { get; private set; }
+        public int Stops { get; private set; }
         public ActiveInteractiveSession? GetActiveSession() => session;
         public bool IsAgentRunning(int sessionId, string executablePath) => Running;
+        public void StopAgent(int sessionId, string executablePath) => Stops++;
         public void LaunchAgent(ActiveInteractiveSession active, string executablePath, string profileId, string? parentExecutablePath) => Launches++;
     }
 
