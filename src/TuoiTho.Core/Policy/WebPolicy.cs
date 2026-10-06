@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 namespace TuoiTho.Core.Policy;
 
 public enum BrowserProvider { GenericWeb, YouTube, TikTok }
-public enum WebRuleScope { Site, YouTubeChannel, TikTokCreator, Domain, PathPrefix }
+public enum WebRuleScope { Site, YouTubeChannel, TikTokCreator, YouTubeSearchKeyword, TikTokSearchKeyword, Domain, PathPrefix }
 public enum WebRuleDecision { Allow, Block }
 public enum BrowserContentType { Site, Channel, Video, ShortForm, Playable, Creator, Unknown }
 
@@ -62,6 +62,21 @@ public static class WebIdentityNormalizer
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || !IsTikTokHost(uri.Host)) return false;
         if (!TryGetDecodedPathSegments(uri, out var parts) || parts.Length < 1) return false;
         return parts[0].StartsWith('@') && TikTokHandle(parts[0], out key, out display);
+    }
+
+    /// <summary>Normalizes only a parent-authored blocked search keyword. Search activity is never persisted here.</summary>
+    public static bool TryNormalizeSearchKeyword(string value, out string key, out string display)
+    {
+        key = display = string.Empty;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+
+        var normalized = Regex.Replace(value.Normalize(NormalizationForm.FormC).Trim(), @"\s+", " ");
+        if (normalized.Length is < 2 or > 100) return false;
+        if (normalized.Any(char.IsControl)) return false;
+
+        display = normalized;
+        key = "keyword:" + normalized.ToLowerInvariant();
+        return true;
     }
 
     /// <summary>Normalizes only a parent-entered website rule. It rejects credentials, internal schemes and malformed percent escapes.</summary>
