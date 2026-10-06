@@ -124,3 +124,16 @@ User chỉ nên phải test các mốc lớn, không test các bước kỹ thu�
 - Browser force-install policy remains machine-wide where real Store extension IDs are supplied.
 - Acceptance gate: on a real Windows machine, reboot, confirm protection is active, then test (1) Task Manager/Services stop attempts, (2) IObit uninstall without the parent password, (3) official uninstall with the parent password, and (4) reboot persistence.
 - Security boundary: this is strong user-mode hardening. It does not claim to defeat a determined actor already executing arbitrary code as LocalSystem/kernel/PPL. If a third-party remover succeeds through a SYSTEM helper, do not add an unsigned/homebrew kernel driver; use a Standard child account plus Windows policy/app-control controls as the next defensive layer.
+
+
+## 11. TASK-009E Account Protection Mode — 2026-10-06
+
+- Real IObit testing proved that TASK-009 user-mode DACL/service hardening does not prevent an already elevated third-party uninstaller from forcibly removing registry entries, files, and the Windows Service. Do not describe the parent-password uninstall hook as absolute tamper protection.
+- Version 1.0.4 changes the security model instead of adding another cosmetic password gate.
+- The Parent UI now has a TÀI KHOẢN tab that inventories local Windows users, Administrator membership, UAC status, and the configured managed-child SID.
+- A parent may convert a selected account to the child role. Safety rules prevent demoting the currently logged-in parent account, the built-in Administrator, or the last remaining enabled Administrator. The operation requires both the local parent authorization gate and Windows UAC elevation.
+- Account selection is stored machine-wide at ProgramData/TuoiTho/account-protection.json. The Service reads it dynamically and only launches/rebinds SessionAgent for the configured Standard User.
+- Administrator and unrelated sessions are explicitly skipped. A stale SessionAgent left in a parent/non-child session is terminated only after exact executable-path and session matching.
+- When no managed-child SID has been configured yet, Administrator sessions are still excluded from child enforcement; the Parent UI reports Account Protection as UNSAFE until an actual Standard child account is selected and UAC is enabled.
+- Intended acceptance: install/upgrade 1.0.4, open TÀI KHOẢN, select the child's Windows account, press Đặt làm tài khoản trẻ, sign into that child account, then try IObit/Revo/Services/Registry. Those tools may launch, but elevation/destructive admin actions must require parent Administrator credentials. Do not test the anti-uninstall claim from the parent Administrator account because Windows Administrator remains the trusted security boundary.
+- Release tag: account-protection-test-20261006.
