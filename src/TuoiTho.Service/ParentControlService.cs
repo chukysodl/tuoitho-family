@@ -100,17 +100,19 @@ public sealed class ParentControlService : IDisposable
                 if (command.DailyQuotaMinutes is null or < 1 or > 1440) return new(false, "INVALID_DAILY_QUOTA", policy, await StatusAsync(policy, token));
                 var validationError = WeeklyScheduleValidator.Validate(command.Windows);
                 if (validationError is not null) return new(false, "INVALID_SCHEDULE", policy, await StatusAsync(policy, token), validationError);
-                if (command.StartupLimitMinutes is null or < 0 or > 1440)
+                var startupLimit = command.StartupLimitMinutes ?? policy.StartupLimitMinutes;
+                if (startupLimit is < 0 or > 1440)
                     return new(false, "INVALID_STARTUP_LIMIT", policy, await StatusAsync(policy, token));
-                var blockedValidation = BlockedScheduleValidator.Validate(command.BlockedWindows);
+                var blockedWindows = command.BlockedWindows ?? policy.BlockedWindows;
+                var blockedValidation = BlockedScheduleValidator.Validate(blockedWindows);
                 if (blockedValidation is not null)
                     return new(false, "INVALID_BLOCKED_SCHEDULE", policy, await StatusAsync(policy, token), blockedValidation);
                 policy = policy with
                 {
                     DailyQuotaMinutes = command.DailyQuotaMinutes.Value,
                     Windows = command.Windows!.ToArray(),
-                    StartupLimitMinutes = command.StartupLimitMinutes.Value,
-                    BlockedWindows = command.BlockedWindows!.ToArray()
+                    StartupLimitMinutes = startupLimit,
+                    BlockedWindows = blockedWindows.ToArray()
                 };
                 await store.SaveAsync(policy, token);
                 changes.Notify();
