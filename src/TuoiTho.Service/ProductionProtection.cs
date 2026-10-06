@@ -50,7 +50,19 @@ public sealed class ProductionSessionAgentWatchdog(
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(value.PollIntervalSeconds));
         do
         {
-            await TickAsync(value, stoppingToken);
+            try
+            {
+                await TickAsync(value, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                ProtectionLog.WatchdogCycleFailed(logger, exception);
+            }
         }
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
