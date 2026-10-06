@@ -141,8 +141,8 @@ if ($agent) { Pass 'SessionAgent watchdog' "Agent is running in interactive sess
 else { Warn 'SessionAgent watchdog' 'Interactive agent is not running yet. Core Service remains protected and will retry automatically; sign out/in or reboot once if the lock overlay does not appear.' }
 
 if ($coreFailures.Count -gt 0) {
-    $summary = @('Bảo vệ lõi chưa đạt:') + @($coreFailures | ForEach-Object { '- ' + $_ })
-    if ($warnings.Count -gt 0) { $summary += ''; $summary += 'Cảnh báo:'; $summary += @($warnings | ForEach-Object { '- ' + $_ }) }
+    $summary = @('Core protection check failed:') + @($coreFailures | ForEach-Object { '- ' + $_ })
+    if ($warnings.Count -gt 0) { $summary += ''; $summary += 'Warnings:'; $summary += @($warnings | ForEach-Object { '- ' + $_ }) }
     $summary | Set-Content -LiteralPath $script:SummaryPath -Encoding UTF8
     Write-CheckLine ''
     Write-CheckLine ("PRODUCTION CHECK: FAIL ($($coreFailures.Count) core failure(s))")
@@ -152,14 +152,14 @@ if ($coreFailures.Count -gt 0) {
 }
 
 if ($warnings.Count -gt 0) {
-    (@('Bảo vệ lõi: ĐẠT','Cảnh báo:') + @($warnings | ForEach-Object { '- ' + $_ })) | Set-Content -LiteralPath $script:SummaryPath -Encoding UTF8
+    (@('Core protection: PASS','Warnings:') + @($warnings | ForEach-Object { '- ' + $_ })) | Set-Content -LiteralPath $script:SummaryPath -Encoding UTF8
     Write-CheckLine ''
     Write-CheckLine ("PRODUCTION CHECK: PASS WITH WARNINGS ($($warnings.Count))")
     Write-CheckLine "Log: $script:CheckLogPath"
     exit 0
 }
 
-@('Bảo vệ lõi: ĐẠT','SessionAgent: ĐẠT') | Set-Content -LiteralPath $script:SummaryPath -Encoding UTF8
+@('Core protection: PASS','SessionAgent: PASS') | Set-Content -LiteralPath $script:SummaryPath -Encoding UTF8
 Write-CheckLine ''
 Write-CheckLine 'PRODUCTION CHECK: PASS'
 Write-CheckLine "Log: $script:CheckLogPath"
