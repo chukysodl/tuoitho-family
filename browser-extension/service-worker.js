@@ -118,12 +118,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
         return;
       }
 
-      let existing = await chrome.storage.local.get([STORAGE_KEY]);
-      if (!Array.isArray(existing[STORAGE_KEY]?.rules)) {
-        await syncPolicy().catch(() => false);
-        existing = await chrome.storage.local.get([STORAGE_KEY]);
-      }
-
+      await syncPolicy().catch(() => false);
+      const existing = await chrome.storage.local.get([STORAGE_KEY]);
       const match = blockedKeywordFor(provider, query, existing[STORAGE_KEY]?.rules || []);
       reply(match
         ? { allowed: false, matchedKeyword: match.displayLabel || "" }
