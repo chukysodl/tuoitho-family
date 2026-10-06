@@ -73,6 +73,40 @@ public sealed class WindowsInteractiveSessionAgentRuntime : IInteractiveSessionA
         return false;
     }
 
+    public void StopAgent(int sessionId, string executablePath)
+    {
+        var expected = Path.GetFullPath(executablePath);
+        var processName = Path.GetFileNameWithoutExtension(expected);
+        foreach (var process in Process.GetProcessesByName(processName))
+        {
+            using (process)
+            {
+                try
+                {
+                    if (process.SessionId != sessionId) continue;
+                    var actual = process.MainModule?.FileName;
+                    if (string.IsNullOrWhiteSpace(actual) ||
+                        !string.Equals(
+                            Path.GetFullPath(actual),
+                            expected,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (Exception exception) when (
+                    exception is InvalidOperationException or
+                    System.ComponentModel.Win32Exception or
+                    NotSupportedException)
+                {
+                    // A disappearing/inaccessible stale agent is already effectively stopped.
+                }
+            }
+        }
+    }
+
     public void LaunchAgent(
         ActiveInteractiveSession session,
         string executablePath,
