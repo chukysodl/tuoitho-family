@@ -29,6 +29,7 @@ public sealed record AccountProtectionSnapshot(
 {
     public bool Safe =>
         UacEnabled &&
+        CurrentAccountAdministrator &&
         !string.IsNullOrWhiteSpace(ManagedChildSid) &&
         ManagedChildExists &&
         !ManagedChildIsAdministrator;
