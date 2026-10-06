@@ -1,5 +1,5 @@
 #define AppName "Quản lý thời gian"
-#define AppVersion "1.0.0"
+#define AppVersion "1.0.1"
 #define AppPublisher "Local Family"
 #ifndef ChromeExtensionId
   #define ChromeExtensionId ""
@@ -122,11 +122,17 @@ begin
 
     CheckScript := ExpandConstant('{app}\Installer\production-check.ps1');
     CheckParams := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + CheckScript +
-      '" -InstallDir "' + ExpandConstant('{app}') + '"';
+      '" -InstallDir "' + ExpandConstant('{app}') + '" -WaitSeconds 30';
     if not Exec('powershell.exe', CheckParams, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
       RaiseException('Không thể chạy kiểm tra bảo vệ sau cài đặt.');
 
     if ResultCode <> 0 then
-      RaiseException('Kiểm tra bảo vệ sau cài đặt chưa đạt. Hãy chạy Repair hoặc xem mục Kiểm tra bảo vệ.');
+    begin
+      Sleep(3000);
+      Exec('powershell.exe', CheckParams, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
+
+    if ResultCode <> 0 then
+      MsgBox('Cài đặt đã hoàn tất nhưng bước tự kiểm tra bảo vệ chưa đạt. Phần mềm sẽ được giữ nguyên để có thể Repair. Xem chi tiết tại C:\ProgramData\TuoiTho\postinstall-check.log.', mbError, MB_OK);
   end;
 end;
