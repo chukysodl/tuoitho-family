@@ -116,7 +116,7 @@ public sealed class AccountProtectionPanel : UserControl
             AutoSize = true,
             MinimumSize = new Size(210, 40)
         };
-        settings.Click += (_, _) => manager.OpenWindowsAccountsSettings();
+        settings.Click += (_, _) => AccountProtectionManager.OpenWindowsAccountsSettings();
 
         actions.Controls.AddRange([apply, refresh, settings]);
         root.Controls.Add(actions, 0, 4);
@@ -135,7 +135,7 @@ public sealed class AccountProtectionPanel : UserControl
     {
         try
         {
-            var snapshot = manager.Snapshot();
+            var snapshot = AccountProtectionManager.Snapshot();
 
             overall.Text = snapshot.Safe
                 ? "BẢO VỆ TÀI KHOẢN: AN TOÀN"
