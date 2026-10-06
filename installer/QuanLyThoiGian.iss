@@ -1,5 +1,5 @@
 #define AppName "Quản lý thời gian"
-#define AppVersion "1.0.3"
+#define AppVersion "1.0.4"
 #define AppPublisher "Local Family"
 #ifndef ChromeExtensionId
   #define ChromeExtensionId ""
