@@ -26,18 +26,20 @@ public sealed class ParentControlService : IDisposable
     private readonly RemoteDeviceIdentityManager? remoteIdentity;
     private readonly IRemotePolicyStore? remotePolicies;
     private readonly RemoteControlRuntimeStatusCache? remoteRuntime;
+    private readonly IWindowsBootTimeProvider? bootTimeProvider;
     private readonly SemaphoreSlim commandGate = new(1, 1);
 
     public ParentControlService(IDeviceTimePolicyStore store, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine, PolicyChangeSignal changes,
         ActivitySampleCache? activityCache = null, WindowsSessionEventSource? sessionEventSource = null, SessionTimeEngine? timeEngine = null,
         IAppPolicyStore? appPolicies = null, AppPolicyEngine? appPolicyEngine = null, IManagedSessionAppDiscovery? appDiscovery = null,
         AppEnforcementState? appEnforcement = null, AppEnforcementAuditTrail? appEnforcementAudit = null, IWebPolicyStore? webPolicies = null,
-        BrowserRuntimeStatusCache? browserRuntime = null, RemoteDeviceIdentityManager? remoteIdentity = null, IRemotePolicyStore? remotePolicies = null, RemoteControlRuntimeStatusCache? remoteRuntime = null)
+        BrowserRuntimeStatusCache? browserRuntime = null, RemoteDeviceIdentityManager? remoteIdentity = null, IRemotePolicyStore? remotePolicies = null, RemoteControlRuntimeStatusCache? remoteRuntime = null,
+        IWindowsBootTimeProvider? bootTimeProvider = null)
     {
         this.store = store; this.usage = usage; this.clock = clock; this.engine = engine; this.changes = changes;
         this.activityCache = activityCache; this.sessionEventSource = sessionEventSource; this.timeEngine = timeEngine;
         this.appPolicies = appPolicies; this.appPolicyEngine = appPolicyEngine; this.appDiscovery = appDiscovery;
-        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies; this.browserRuntime = browserRuntime; this.remoteIdentity = remoteIdentity; this.remotePolicies = remotePolicies; this.remoteRuntime = remoteRuntime;
+        this.appEnforcement = appEnforcement; this.appEnforcementAudit = appEnforcementAudit; this.webPolicies = webPolicies; this.browserRuntime = browserRuntime; this.remoteIdentity = remoteIdentity; this.remotePolicies = remotePolicies; this.remoteRuntime = remoteRuntime; this.bootTimeProvider = bootTimeProvider;
     }
 
     public ParentControlService(IDeviceTimePolicyStore store, IClock clock, PolicyChangeSignal changes)
@@ -98,10 +100,21 @@ public sealed class ParentControlService : IDisposable
                 if (command.DailyQuotaMinutes is null or < 1 or > 1440) return new(false, "INVALID_DAILY_QUOTA", policy, await StatusAsync(policy, token));
                 var validationError = WeeklyScheduleValidator.Validate(command.Windows);
                 if (validationError is not null) return new(false, "INVALID_SCHEDULE", policy, await StatusAsync(policy, token), validationError);
-                policy = policy with { DailyQuotaMinutes = command.DailyQuotaMinutes.Value, Windows = command.Windows!.ToArray() };
+                if (command.StartupLimitMinutes is null or < 0 or > 1440)
+                    return new(false, "INVALID_STARTUP_LIMIT", policy, await StatusAsync(policy, token));
+                var blockedValidation = BlockedScheduleValidator.Validate(command.BlockedWindows);
+                if (blockedValidation is not null)
+                    return new(false, "INVALID_BLOCKED_SCHEDULE", policy, await StatusAsync(policy, token), blockedValidation);
+                policy = policy with
+                {
+                    DailyQuotaMinutes = command.DailyQuotaMinutes.Value,
+                    Windows = command.Windows!.ToArray(),
+                    StartupLimitMinutes = command.StartupLimitMinutes.Value,
+                    BlockedWindows = command.BlockedWindows!.ToArray()
+                };
                 await store.SaveAsync(policy, token);
                 changes.Notify();
-                return new(true, null, policy, await StatusAsync(policy, token), "Đã lưu hạn mức và khung giờ sử dụng.");
+                return new(true, null, policy, await StatusAsync(policy, token), "Đã lưu hạn mức, thời gian sau khi bật máy và khung giờ cấm.");
             }
             switch (command.Action)
             {
@@ -239,7 +252,10 @@ public sealed class ParentControlService : IDisposable
         var used = await usage.GetUsageAsync(policy.ProfileId, DateOnly.FromDateTime(local.DateTime), token);
         var grants = await store.GetGrantsAsync(policy.ProfileId, token);
         var active = grants.Where(g => g.ExpiresAtUtc > clock.UtcNow).ToArray();
-        var decision = engine.Evaluate(policy, used, active);
+        var bootElapsed = bootTimeProvider is null
+            ? (TimeSpan?)null
+            : clock.UtcNow - bootTimeProvider.GetBootStartedAtUtc(clock.UtcNow);
+        var decision = engine.Evaluate(policy, used, active, bootElapsed);
         var state = policy.ParentOverride ? "OVERRIDE" : decision.Allowed ? "ALLOWED" : PolicyReasonText.ToDisplayText(decision.Reason);
         var sample = activityCache?.GetFresh(policy.ProfileId, policy.ManagedSessionId, TimeSpan.FromSeconds(15));
         var checkpoint = await usage.LoadCheckpointAsync(policy.ProfileId, token);
@@ -268,7 +284,7 @@ public sealed class ParentControlService : IDisposable
         }
         var snapshot = webPolicies is null ? null : await webPolicies.GetSnapshotAsync(policy.ProfileId, token);
         var web = snapshot is null ? null : new ParentWebControlStatus(snapshot.Rules, browserRuntime?.Snapshot(), snapshot.Revision);
-        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, policy.Windows, web, remoteRuntime?.Snapshot());
+        return new(policy.ProfileId, policy.ManagedSessionId, policy.TestMode, (int)Math.Floor(used.TotalMinutes), policy.DailyQuotaMinutes, active.Sum(g => g.Minutes), decision.RemainingMinutes, state, diagnostics, allowedSeconds, remainingSeconds, apps, policy.Windows, web, remoteRuntime?.Snapshot(), policy.StartupLimitMinutes, bootElapsed is null ? 0 : Math.Max(0, (int)Math.Floor(bootElapsed.Value.TotalMinutes)), policy.BlockedWindows);
     }
 
     /// <summary>In-process remote command bridge; remote requests still pass through this service's validated local policy actions.</summary>
