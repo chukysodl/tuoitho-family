@@ -375,13 +375,13 @@ sealed class SetPasswordForm : Form
         ClientSize = new Size(410, 205);
         Font = new Font("Segoe UI", 10);
 
-        var title = new Label { Text = "Mật khẩu dùng để thay đổi hoặc gỡ bảo vệ", AutoSize = true, Location = new Point(24, 18), Font = new Font("Segoe UI", 10, FontStyle.Bold) };
+        var heading = new Label { Text = "Mật khẩu dùng để thay đổi hoặc gỡ bảo vệ", AutoSize = true, Location = new Point(24, 18), Font = new Font("Segoe UI", 10, FontStyle.Bold) };
         var label1 = new Label { Text = "Mật khẩu (ít nhất 6 ký tự)", AutoSize = true, Location = new Point(24, 52) };
         first.Location = new Point(24, 74);
         var label2 = new Label { Text = "Nhập lại mật khẩu", AutoSize = true, Location = new Point(24, 108) };
         second.Location = new Point(24, 130);
         var ok = new Button { Text = "Lưu mật khẩu", DialogResult = DialogResult.OK, Location = new Point(262, 163), Size = new Size(120, 32) };
-        Controls.AddRange([title, label1, first, label2, second, ok]);
+        Controls.AddRange([heading, label1, first, label2, second, ok]);
         AcceptButton = ok;
     }
 
