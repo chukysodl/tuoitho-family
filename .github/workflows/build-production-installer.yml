@@ -6,6 +6,7 @@ on:
       - task/009-installer-hardening
       - task/009b-time-guardrails
       - task/009c-installer-keywords
+      - task/009d-postinstall-selfheal
   workflow_dispatch:
     inputs:
       chrome_extension_id:
