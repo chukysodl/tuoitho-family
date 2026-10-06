@@ -136,20 +136,68 @@ public sealed class ParentControlService : IDisposable
 
     private async Task<ParentControlResult> ExecuteWebAsync(ParentControlCommand command, DeviceTimePolicy policy, CancellationToken token)
     {
-        if (webPolicies is null || command.WebRule is null || command.WebRule.ProfileId != policy.ProfileId) return new(false, "INVALID_WEB_RULE");
-        var rule = command.WebRule;
-        if (rule.Provider == BrowserProvider.GenericWeb)
-        {
-            if (!WebIdentityNormalizer.TryNormalizeCustomWebsite(rule.DisplayLabel, rule.Scope, out var identity) || !string.Equals(identity.NormalizedKey, rule.NormalizedKey, StringComparison.Ordinal)) return new(false, "INVALID_WEB_RULE");
-            rule = rule with { DisplayLabel = identity.DisplayValue, NormalizedKey = identity.NormalizedKey };
-        }
-        else if (rule.Provider is not (BrowserProvider.YouTube or BrowserProvider.TikTok) || string.IsNullOrWhiteSpace(rule.NormalizedKey) || rule.Scope is WebRuleScope.Domain or WebRuleScope.PathPrefix)
-        {
+        if (webPolicies is null || command.WebRule is null || command.WebRule.ProfileId != policy.ProfileId)
             return new(false, "INVALID_WEB_RULE");
+
+        if (!TryNormalizeParentWebRule(command.WebRule, out var rule))
+            return new(false, "INVALID_WEB_RULE", policy, await StatusAsync(policy, token));
+
+        if (command.Action == ParentControlAction.RemoveWebRule)
+            await webPolicies.RemoveRuleAsync(policy.ProfileId, rule.Provider, rule.Scope, rule.NormalizedKey, token);
+        else
+            await webPolicies.SaveRuleAsync(rule, token);
+
+        changes.Notify();
+        return new(true, null, policy, await StatusAsync(policy, token));
+    }
+
+    private static bool TryNormalizeParentWebRule(WebRule input, out WebRule rule)
+    {
+        rule = input;
+
+        if (input.Provider == BrowserProvider.GenericWeb)
+        {
+            if (!WebIdentityNormalizer.TryNormalizeCustomWebsite(input.DisplayLabel, input.Scope, out var identity))
+                return false;
+            rule = input with { DisplayLabel = identity.DisplayValue, NormalizedKey = identity.NormalizedKey };
+            return string.Equals(identity.NormalizedKey, input.NormalizedKey, StringComparison.Ordinal);
         }
-        if (command.Action == ParentControlAction.RemoveWebRule) await webPolicies.RemoveRuleAsync(policy.ProfileId, rule.Provider, rule.Scope, rule.NormalizedKey, token);
-        else await webPolicies.SaveRuleAsync(rule, token);
-        changes.Notify(); return new(true, null, policy, await StatusAsync(policy, token));
+
+        if (input.Scope == WebRuleScope.Site &&
+            input.Provider is BrowserProvider.YouTube or BrowserProvider.TikTok)
+        {
+            var siteKey = WebPolicyEngine.SiteKey(input.Provider);
+            return string.Equals(input.NormalizedKey, siteKey, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (input.Provider == BrowserProvider.YouTube && input.Scope == WebRuleScope.YouTubeChannel)
+        {
+            if (!WebIdentityNormalizer.TryNormalizeYouTubeChannel(input.DisplayLabel, out var key, out var display))
+                return false;
+            rule = input with { NormalizedKey = key, DisplayLabel = display };
+            return string.Equals(key, input.NormalizedKey, StringComparison.Ordinal);
+        }
+
+        if (input.Provider == BrowserProvider.TikTok && input.Scope == WebRuleScope.TikTokCreator)
+        {
+            if (!WebIdentityNormalizer.TryNormalizeTikTokCreator(input.DisplayLabel, out var key, out var display))
+                return false;
+            rule = input with { NormalizedKey = key, DisplayLabel = display };
+            return string.Equals(key, input.NormalizedKey, StringComparison.Ordinal);
+        }
+
+        var validKeywordScope =
+            input.Provider == BrowserProvider.YouTube && input.Scope == WebRuleScope.YouTubeSearchKeyword ||
+            input.Provider == BrowserProvider.TikTok && input.Scope == WebRuleScope.TikTokSearchKeyword;
+
+        if (!validKeywordScope || input.Decision != WebRuleDecision.Block)
+            return false;
+
+        if (!WebIdentityNormalizer.TryNormalizeSearchKeyword(input.DisplayLabel, out var keywordKey, out var keywordDisplay))
+            return false;
+
+        rule = input with { NormalizedKey = keywordKey, DisplayLabel = keywordDisplay };
+        return string.Equals(keywordKey, input.NormalizedKey, StringComparison.Ordinal);
     }
     private async Task<ParentControlResult> SetExplicitBlockOnlyAsync(bool enabled, DeviceTimePolicy policy, CancellationToken token)
     {
