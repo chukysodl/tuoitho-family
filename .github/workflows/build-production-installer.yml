@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - task/009-installer-hardening
+      - task/009b-time-guardrails
   workflow_dispatch:
     inputs:
       chrome_extension_id:
