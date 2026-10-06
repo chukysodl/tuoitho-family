@@ -36,7 +36,10 @@ public sealed class ParentDesktopController(IParentControlClient client, string 
     public Task<ParentUiResult> SendAppAsync(ParentControlAction action, AppIdentity application, CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(action, profileId, sessionId, null, application), token);
 
-    public Task<ParentUiResult> SaveTimePolicyAsync(int dailyQuotaMinutes, IReadOnlyList<AllowedUsageWindow> windows, CancellationToken token = default) =>\n        SaveTimePolicyAsync(dailyQuotaMinutes, windows, 0, [], token);\n\n    public Task<ParentUiResult> SaveTimePolicyAsync(int dailyQuotaMinutes, IReadOnlyList<AllowedUsageWindow> windows, int startupLimitMinutes, IReadOnlyList<BlockedUsageWindow> blockedWindows, CancellationToken token = default) =>
+    public Task<ParentUiResult> SaveTimePolicyAsync(int dailyQuotaMinutes, IReadOnlyList<AllowedUsageWindow> windows, CancellationToken token = default) =>
+        SaveTimePolicyAsync(dailyQuotaMinutes, windows, 0, [], token);
+
+    public Task<ParentUiResult> SaveTimePolicyAsync(int dailyQuotaMinutes, IReadOnlyList<AllowedUsageWindow> windows, int startupLimitMinutes, IReadOnlyList<BlockedUsageWindow> blockedWindows, CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(ParentControlAction.SaveTimePolicy, profileId, sessionId, DailyQuotaMinutes: dailyQuotaMinutes, Windows: windows, StartupLimitMinutes: startupLimitMinutes, BlockedWindows: blockedWindows), token);
     public Task<ParentUiResult> SendWebRuleAsync(ParentControlAction action, WebRule rule, CancellationToken token = default) =>
         ExecuteAsync(new ParentControlCommand(action, profileId, sessionId, WebRule: rule), token);
