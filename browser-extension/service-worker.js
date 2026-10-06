@@ -25,6 +25,26 @@ function parseRule(rule) {
   return { ...rule, host, path };
 }
 function ruleFilter(rule) { return `||${rule.host}${rule.scope === "PathPrefix" ? rule.path : "^"}`; }
+
+function normalizeKeyword(value) {
+  return String(value || "").normalize("NFC").trim().replace(/\s+/g, " ").toLowerCase();
+}
+function keywordScope(provider) {
+  if (provider === "YouTube") return "YouTubeSearchKeyword";
+  if (provider === "TikTok") return "TikTokSearchKeyword";
+  return null;
+}
+function blockedKeywordFor(provider, query, rules) {
+  const scope = keywordScope(provider);
+  const normalized = normalizeKeyword(query);
+  if (!scope || normalized.length < 1) return null;
+  const candidates = (Array.isArray(rules) ? rules : [])
+    .filter(rule => rule && rule.scope === scope && rule.decision === "Block" && String(rule.normalizedKey || "").startsWith("keyword:"))
+    .map(rule => ({ rule, keyword: String(rule.normalizedKey).slice("keyword:".length) }))
+    .filter(item => item.keyword.length >= 2)
+    .sort((a, b) => b.keyword.length - a.keyword.length);
+  return candidates.find(item => normalized.includes(item.keyword))?.rule || null;
+}
 function dnrRules(rules) {
   const used = new Set();
   return rules.map(parseRule).filter(Boolean).sort((a,b) => a.normalizedKey.localeCompare(b.normalizedKey)).map(rule => {
@@ -56,19 +76,20 @@ async function reportDnrSync(customRuleCount, state, error = null) {
 }
 async function applySnapshot(snapshot) {
   const rules = Array.isArray(snapshot.customRules) ? snapshot.customRules : [];
-  const generated = dnrRules(rules);
+  const genericRules = rules.filter(rule => rule?.provider === "GenericWeb");
+  const generated = dnrRules(genericRules);
   try {
     const storage = await chrome.storage.local.get([OWNED_IDS_KEY]);
     const removeRuleIds = Array.isArray(storage[OWNED_IDS_KEY]) ? storage[OWNED_IDS_KEY] : [];
     await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds, addRules: generated });
     const activeCount = await activeOwnedRuleCount(generated.map(rule => rule.id));
     await chrome.storage.local.set({ [OWNED_IDS_KEY]: generated.map(rule => rule.id), [STORAGE_KEY]: { revision: snapshot.policyRevision || 0, rules } });
-    await reportDnrSync(rules.length, "PASS");
+    await reportDnrSync(genericRules.length, "PASS");
     return { ok: true, activeCount };
   } catch (error) {
     const safe = safeDnrError(error);
     console.warn("[TuoiTho M4] DNR sync failed:", safe);
-    await reportDnrSync(rules.length, "FAIL", safe).catch(() => {});
+    await reportDnrSync(genericRules.length, "FAIL", safe).catch(() => {});
     return { ok: false, activeCount: 0, error: safe };
   }
 }
@@ -77,7 +98,8 @@ async function syncPolicy() {
   if (!result || result.reason !== "POLICY_SNAPSHOT") return false;
   const existing = await chrome.storage.local.get([STORAGE_KEY]);
   if ((existing[STORAGE_KEY]?.revision ?? -1) !== (result.policyRevision ?? 0)) return (await applySnapshot(result)).ok;
-  await reportDnrSync(Array.isArray(existing[STORAGE_KEY]?.rules) ? existing[STORAGE_KEY].rules.length : 0, "PASS").catch(() => {});
+  const storedRules = Array.isArray(existing[STORAGE_KEY]?.rules) ? existing[STORAGE_KEY].rules : [];
+  await reportDnrSync(storedRules.filter(rule => rule?.provider === "GenericWeb").length, "PASS").catch(() => {});
   return true;
 }
 chrome.runtime.onInstalled.addListener(() => { void syncPolicy(); });
@@ -85,9 +107,34 @@ chrome.runtime.onStartup.addListener(() => { void syncPolicy(); });
 chrome.webNavigation.onCommitted.addListener(details => { if (details.frameId === 0) void syncPolicy(); }, { url: [{ schemes: ["http", "https"] }] });
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
-  if (!message || message.type !== "tuoitho-navigation" || !sender.tab) return;
+  if (!message || !sender.tab) return;
+
+  if (message.type === "tuoitho-keyword-check") {
+    (async () => {
+      const provider = message.provider === "YouTube" || message.provider === "TikTok" ? message.provider : null;
+      const query = typeof message.query === "string" ? message.query.slice(0, 500) : "";
+      if (!provider || !query) {
+        reply({ allowed: true });
+        return;
+      }
+
+      let existing = await chrome.storage.local.get([STORAGE_KEY]);
+      if (!Array.isArray(existing[STORAGE_KEY]?.rules)) {
+        await syncPolicy().catch(() => false);
+        existing = await chrome.storage.local.get([STORAGE_KEY]);
+      }
+
+      const match = blockedKeywordFor(provider, query, existing[STORAGE_KEY]?.rules || []);
+      reply(match
+        ? { allowed: false, matchedKeyword: match.displayLabel || "" }
+        : { allowed: true });
+    })();
+    return true;
+  }
+
+  if (message.type !== "tuoitho-navigation") return;
   native(message.payload).then(result => reply(result || unavailable("BrowserHost không phản hồi.")));
   return true;
 });
 
-export const __test = { parseRule, dnrRules, applySnapshot };
+export const __test = { parseRule, dnrRules, applySnapshot, normalizeKeyword, blockedKeywordFor };
