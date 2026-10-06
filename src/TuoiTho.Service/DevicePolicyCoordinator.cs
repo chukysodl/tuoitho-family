@@ -19,7 +19,8 @@ public sealed class LocalPolicyWarningPublisher(LocalSessionWarningPublisher pub
 
 public sealed class DevicePolicyCoordinator(
     IDeviceTimePolicyStore policies, ITimeUsageStore usage, IClock clock, DeviceTimePolicyEngine engine,
-    SafeChildSessionEnforcer enforcer, IPolicyWarningPublisher publisher, PolicyChangeSignal changes)
+    SafeChildSessionEnforcer enforcer, IPolicyWarningPublisher publisher, PolicyChangeSignal changes,
+    IWindowsBootTimeProvider? bootTimeProvider = null)
 {
     public async Task<SessionEnforcementResult?> EvaluateAsync(string profileId, CancellationToken token = default)
     {
@@ -28,7 +29,10 @@ public sealed class DevicePolicyCoordinator(
         var localNow = TimeZoneInfo.ConvertTime(clock.UtcNow, clock.LocalTimeZone);
         var used = await usage.GetUsageAsync(profileId, DateOnly.FromDateTime(localNow.DateTime), token);
         var grants = await policies.GetGrantsAsync(profileId, token);
-        var decision = engine.Evaluate(policy, used, grants);
+        var bootElapsed = bootTimeProvider is null
+            ? (TimeSpan?)null
+            : clock.UtcNow - bootTimeProvider.GetBootStartedAtUtc(clock.UtcNow);
+        var decision = engine.Evaluate(policy, used, grants, bootElapsed);
         try { await publisher.PublishAsync(new SessionWarning(profileId, policy.ManagedSessionId, decision.RemainingMinutes, decision.Warnings.Count == 0 ? null : decision.Warnings[0], decision.Reason), token); } catch (Exception exception) when (exception is IOException or OperationCanceledException && !token.IsCancellationRequested) { PolicyCoordinatorLog.WarningUnavailable(); }
         return await enforcer.EnforceAsync(policy, policy.ManagedSessionId, decision, token);
     }
