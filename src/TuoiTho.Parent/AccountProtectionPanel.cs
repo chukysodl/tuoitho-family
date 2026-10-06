@@ -144,7 +144,8 @@ public sealed class AccountProtectionPanel : UserControl
                 : snapshot.ManagedChildName;
 
             details.Text =
-                $"Tài khoản phụ huynh hiện tại: {snapshot.CurrentUser}\r\n" +
+                $"Tài khoản phụ huynh hiện tại: {snapshot.CurrentUser} " +
+                $"({(snapshot.CurrentAccountAdministrator ? "Administrator" : "Standard User")})\r\n" +
                 $"UAC Windows: {(snapshot.UacEnabled ? "BẬT" : "TẮT")}\r\n" +
                 $"Tài khoản trẻ đang quản lý: {managed}\r\n\r\n" +
                 "Mục tiêu của chế độ này: tài khoản trẻ phải là Standard User. " +
@@ -223,6 +224,8 @@ public sealed class AccountProtectionPanel : UserControl
 
     private static string BuildUnsafeReason(AccountProtectionSnapshot snapshot)
     {
+        if (!snapshot.CurrentAccountAdministrator)
+            return "Bạn đang mở Quản lý thời gian từ tài khoản Standard User. Hãy quản trị bằng tài khoản phụ huynh Administrator.";
         if (!snapshot.UacEnabled)
             return "UAC của Windows đang tắt. Cần bật UAC để Standard User không thể tự nâng quyền.";
         if (string.IsNullOrWhiteSpace(snapshot.ManagedChildSid))
