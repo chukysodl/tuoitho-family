@@ -94,7 +94,7 @@ public sealed class AccountProtectionManager
             accounts);
     }
 
-    public AccountProtectionOperationResult ConfigureChild(string sid)
+    public static AccountProtectionOperationResult ConfigureChild(string sid)
     {
         var snapshot = Snapshot();
         if (!snapshot.CurrentProcessElevated)
@@ -164,7 +164,7 @@ public sealed class AccountProtectionManager
             $"Đã đặt {refreshed.Name} làm tài khoản trẻ Standard User. IObit/Revo và thao tác quản trị từ tài khoản này sẽ phải xin thông tin Administrator của phụ huynh.");
     }
 
-    public AccountProtectionOperationResult ConfigureChildWithElevation(
+    public static AccountProtectionOperationResult ConfigureChildWithElevation(
         string sid,
         IWin32Window? owner = null)
     {
