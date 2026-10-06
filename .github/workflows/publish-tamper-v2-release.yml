@@ -1,9 +1,9 @@
-name: Publish Repair and Keywords test release
+name: Publish Postinstall Self-Heal test release
 
 on:
   push:
     branches:
-      - task/009c-installer-keywords
+      - task/009d-postinstall-selfheal
     paths:
       - '.github/workflows/publish-tamper-v2-release.yml'
   workflow_dispatch:
@@ -24,7 +24,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Build and validate Repair and Keywords
+      - name: Build and validate Postinstall Self-Heal
         shell: pwsh
         run: |
           dotnet restore TuoiTho.sln
@@ -51,17 +51,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path artifacts\release -Force | Out-Null
-          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.2_Repair_Keywords_Setup.exe -Force
+          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.3_SelfHeal_Setup.exe -Force
           Copy-Item artifacts\production\QuanLyThoiGian-BrowserExtension-Store.zip artifacts\release\BrowserExtension-Store.zip -Force
           Copy-Item artifacts\production\build-info.json artifacts\release\build-info.json -Force
-          Compress-Archive -Path artifacts\release\QLTG_1.0.2_Repair_Keywords_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.2_Repair_Keywords.zip -Force
+          Compress-Archive -Path artifacts\release\QLTG_1.0.3_SelfHeal_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.3_SelfHeal.zip -Force
 
       - name: Publish GitHub pre-release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'repair-keywords-test-20261006'
+          $tag = 'postinstall-selfheal-test-20261006'
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) { gh release delete $tag --yes --cleanup-tag }
-          gh release create $tag artifacts\release\QLTG_1.0.2_Repair_Keywords_Setup.exe artifacts\release\QLTG_1.0.2_Repair_Keywords.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.2 - Repair Auth and Search Keywords" --notes "Pre-release for TASK-009C. Adds recovery for missing/corrupt parent-auth during repair, keeps Tamper Protection and time guardrails, and adds local-only blocked search keywords for YouTube and TikTok. Search queries are not sent to the Windows Service or persisted." --prerelease
+          gh release create $tag artifacts\release\QLTG_1.0.3_SelfHeal_Setup.exe artifacts\release\QLTG_1.0.3_SelfHeal.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.3 - Postinstall Self-Heal" --notes "Pre-release for TASK-009D. Fixes false post-install protection failures by validating effective Service DACL rights instead of exact SDDL text, keeps the core Service alive when SessionAgent launch fails, self-heals SessionAgent in the interactive session, and distinguishes core failures from interactive warnings. Includes all 1.0.2 repair, time guardrail, Tamper Protection, and YouTube/TikTok keyword features." --prerelease
