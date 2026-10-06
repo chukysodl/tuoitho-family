@@ -29,6 +29,7 @@ public interface IInteractiveSessionAgentRuntime
 {
     ActiveInteractiveSession? GetActiveSession();
     bool IsAgentRunning(int sessionId, string executablePath);
+    void StopAgent(int sessionId, string executablePath);
     void LaunchAgent(ActiveInteractiveSession session, string executablePath, string profileId, string? parentExecutablePath);
 }
 
@@ -81,6 +82,7 @@ public sealed class ProductionSessionAgentWatchdog(
                     accountProtection.ManagedChildSid,
                     StringComparison.OrdinalIgnoreCase))
             {
+                StopStaleAgentIfNeeded(session, value.SessionAgentPath);
                 ProtectionLog.NonChildSessionSkipped(
                     logger,
                     session.SessionId,
@@ -90,6 +92,7 @@ public sealed class ProductionSessionAgentWatchdog(
 
             if (session.IsAdministrator)
             {
+                StopStaleAgentIfNeeded(session, value.SessionAgentPath);
                 ProtectionLog.ManagedChildStillAdministrator(
                     logger,
                     session.SessionId,
@@ -99,6 +102,7 @@ public sealed class ProductionSessionAgentWatchdog(
         }
         else if (session.IsAdministrator)
         {
+            StopStaleAgentIfNeeded(session, value.SessionAgentPath);
             ProtectionLog.AdministratorSessionSkipped(
                 logger,
                 session.SessionId,
@@ -150,6 +154,15 @@ public sealed class ProductionSessionAgentWatchdog(
             string.IsNullOrWhiteSpace(value.ParentExecutablePath) ? null : value.ParentExecutablePath);
         changes.Notify();
         ProtectionLog.AgentRestarted(logger, session.SessionId);
+    }
+
+    private void StopStaleAgentIfNeeded(
+        ActiveInteractiveSession session,
+        string executablePath)
+    {
+        if (!runtime.IsAgentRunning(session.SessionId, executablePath)) return;
+        runtime.StopAgent(session.SessionId, executablePath);
+        ProtectionLog.StaleAgentStopped(logger, session.SessionId, session.UserSid);
     }
 
     private void RebindBrowserConfiguration(string profileId, ActiveInteractiveSession session)
@@ -216,4 +229,7 @@ internal static partial class ProtectionLog
 
     [LoggerMessage(EventId = 2809, Level = LogLevel.Error, Message = "Configured child session {SessionId} SID {UserSid} still has Administrator membership; child enforcement is held until the account is Standard User.")]
     public static partial void ManagedChildStillAdministrator(ILogger logger, int sessionId, string userSid);
+
+    [LoggerMessage(EventId = 2810, Level = LogLevel.Information, Message = "Stopped stale SessionAgent in non-child session {SessionId} SID {UserSid}.")]
+    public static partial void StaleAgentStopped(ILogger logger, int sessionId, string userSid);
 }
