@@ -1,9 +1,9 @@
-name: Publish Time Guardrails test release
+name: Publish Repair and Keywords test release
 
 on:
   push:
     branches:
-      - task/009b-time-guardrails
+      - task/009c-installer-keywords
     paths:
       - '.github/workflows/publish-tamper-v2-release.yml'
   workflow_dispatch:
@@ -24,12 +24,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Build and validate Time Guardrails
+      - name: Build and validate Repair and Keywords
         shell: pwsh
         run: |
           dotnet restore TuoiTho.sln
           dotnet build TuoiTho.sln --configuration Release --no-restore
-          dotnet test tests\TuoiTho.Tests\TuoiTho.Tests.csproj --configuration Release --no-build --no-restore --filter "FullyQualifiedName~TamperProtectionTests|FullyQualifiedName~TimeGuardrailTests|FullyQualifiedName~ParentTimePolicyTests"
+          dotnet test tests\TuoiTho.Tests\TuoiTho.Tests.csproj --configuration Release --no-build --no-restore --filter "FullyQualifiedName~TamperProtectionTests|FullyQualifiedName~TimeGuardrailTests|FullyQualifiedName~ParentTimePolicyTests|FullyQualifiedName~WebPolicyTests|FullyQualifiedName~BrowserRuntimeAndContentTests"
 
       - name: Publish self-contained components
         shell: pwsh
@@ -51,17 +51,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path artifacts\release -Force | Out-Null
-          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.1_TimeGuardrails_Setup.exe -Force
+          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.2_Repair_Keywords_Setup.exe -Force
           Copy-Item artifacts\production\QuanLyThoiGian-BrowserExtension-Store.zip artifacts\release\BrowserExtension-Store.zip -Force
           Copy-Item artifacts\production\build-info.json artifacts\release\build-info.json -Force
-          Compress-Archive -Path artifacts\release\QLTG_1.0.1_TimeGuardrails_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.1_TimeGuardrails.zip -Force
+          Compress-Archive -Path artifacts\release\QLTG_1.0.2_Repair_Keywords_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.2_Repair_Keywords.zip -Force
 
       - name: Publish GitHub pre-release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'time-guardrails-test-20261006'
+          $tag = 'repair-keywords-test-20261006'
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) { gh release delete $tag --yes --cleanup-tag }
-          gh release create $tag artifacts\release\QLTG_1.0.1_TimeGuardrails_Setup.exe artifacts\release\QLTG_1.0.1_TimeGuardrails.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.1 - Time Guardrails Test" --notes "Pre-release for TASK-009B. Fixes delayed post-install protection check and adds post-boot usage limit plus daily blocked-hour windows. Validate installer, 60-minute boot limit, blocked hours, reboot persistence, and Tamper Protection." --prerelease
+          gh release create $tag artifacts\release\QLTG_1.0.2_Repair_Keywords_Setup.exe artifacts\release\QLTG_1.0.2_Repair_Keywords.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.2 - Repair Auth and Search Keywords" --notes "Pre-release for TASK-009C. Adds recovery for missing/corrupt parent-auth during repair, keeps Tamper Protection and time guardrails, and adds local-only blocked search keywords for YouTube and TikTok. Search queries are not sent to the Windows Service or persisted." --prerelease
