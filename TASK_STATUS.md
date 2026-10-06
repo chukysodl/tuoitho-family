@@ -12,6 +12,7 @@
 | TASK-008 | IMPLEMENTED — remote transport, pairing, commands, policy sync, dashboard; TASK-008B deployment tooling implemented, awaiting real provider deployment and M5 acceptance | task/008-remote-control | implementation `912222cae57c6d2a1578c8e3e3b314d1b3397cfb`; baseline Actions 35806837895 PASS; TASK-008B local Release build/full tests/System Check PASS; Deno CLI unavailable locally and branch CI pending push | M5 not run (no Supabase login/project/key or deployed endpoint in workspace) |
 | TASK-009 | IMPLEMENTED / AWAITING USER TAMPER ACCEPTANCE — Service DACL + install ACL + password-authorized maintenance window | task/009-installer-hardening | code head `969ec5cb0bf6160f547d07fb8bd2a74f0644d607`; Build and test Actions `36718235743` PASS; production installer Actions `36718235745` PASS | pending IObit / Services / Task Manager / reboot test |
 | TASK-009B | IMPLEMENTED / AWAITING USER ACCEPTANCE — installer post-check repair + boot-time limit + daily blocked hours | task/009b-time-guardrails | Build/Test/System Check PASS; GitHub pre-release `time-guardrails-test-20261006` PASS | yes |
+| TASK-009C | IMPLEMENTED / AWAITING USER ACCEPTANCE — repair broken parent-auth + YouTube/TikTok blocked search keywords | task/009c-installer-keywords | Full Build/Test/System Check Actions `37451574738` PASS; pre-release `repair-keywords-test-20261006` PASS | yes |
 | TASK-010 | PENDING | task/010-community-release | — | RC1 |
 
 Verified integrated baseline: `main` at `cf5d3a7954690a6af689ea78adfb1f2c1b4a3dd7`; GitHub Actions run `35803055541` PASS. TASK-008 may proceed because its declared dependency is TASK-005, which is merged and validated. TASK-007 search remains separate work.
@@ -22,3 +23,11 @@ TASK-008B deployment helpers are implemented and locally validated on `task/008-
 TASK-009 Tamper Protection v2 is implemented and CI-validated. Normal protected state grants LocalSystem full service control while Administrators retain read/start but not full stop/delete/change-config rights; install files are read/execute for Administrators. Correct parent-password authorization asks the running protection service to open a bounded maintenance window, temporarily restoring Administrator write/full service rights for official repair/uninstall. This is intentionally user-mode hardening, not a kernel/PPL claim; real-world acceptance still requires testing against IObit and other elevated removal paths.
 
 TASK-009B adds a configurable post-boot wall-clock limit (0 disables), up to 6 daily repeating blocked windows including overnight ranges, and parent override precedence. It also changes the post-install protection check to wait longer, validate SessionAgent in any interactive session, write `C:\\ProgramData\\TuoiTho\\postinstall-check.log`, retry once, and preserve the installation instead of throwing a fatal installer runtime error when the diagnostic is delayed.
+
+
+TASK-009C:
+- Installer 1.0.2 detects an existing install whose parent-auth verifier is missing/corrupt. A temporary self-contained AdminTool offers parent-auth recovery before file replacement, creates a new verifier under elevated parent control, hardens its ACL again, and requests the maintenance window. Fresh installs keep the normal first-password flow.
+- Web policy adds parent-authored YouTubeSearchKeyword and TikTokSearchKeyword block rules.
+- Search queries are evaluated locally inside browser extension 0.3.0. They are not added to BrowserNavigationRequest, are not sent to the Windows Service, and are not persisted as browsing/search history.
+- YouTube checks committed /results?search_query=... routes. TikTok checks /search routes using q/keyword/search_query parameters.
+- The extension refreshes policy revision before keyword evaluation so newly blocked terms take effect on the next search.
