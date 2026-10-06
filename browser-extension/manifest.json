@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Quản lý thời gian M4 Browser Control",
-  "version": "0.2.0",
-  "description": "Local-only browser policy evaluation and parent-created URL blocking.",
+  "version": "0.3.0",
+  "description": "Local-only browser policy evaluation, parent-created URL blocking, and search keyword controls.",
   "permissions": ["nativeMessaging", "declarativeNetRequest", "storage", "webNavigation"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "service-worker.js", "type": "module" },
