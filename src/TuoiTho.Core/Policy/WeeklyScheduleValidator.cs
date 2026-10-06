@@ -38,6 +38,8 @@ public static class ParentPolicyStateText
         "PARENT_LOCK" => "Đã khóa bởi phụ huynh",
         "QUOTA_EXHAUSTED" => "Đã hết thời gian hôm nay",
         "OUTSIDE_SCHEDULE" => "Ngoài khung giờ được phép",
+        "BLOCKED_TIME" => "Đang trong khung giờ cấm",
+        "STARTUP_LIMIT_EXCEEDED" => "Đã hết thời gian cho phép sau khi bật máy",
         _ => "Chưa xác định"
     };
 }
