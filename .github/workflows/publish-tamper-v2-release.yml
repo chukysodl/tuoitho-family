@@ -1,3 +1,4 @@
+# TASK-009E release gate: full validation completed before pre-release publish.
 name: Publish Account Protection test release
 
 on:
