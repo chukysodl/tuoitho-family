@@ -12,7 +12,7 @@ public sealed class ProductionProtectionTests
     {
         var original = Policy(parentLock: true) with { ManagedSessionId = 3, ManagedUserSid = "S-1-5-21-old", TestMode = true };
         var store = new Store(original);
-        var runtime = new Runtime(new ActiveInteractiveSession(7, "S-1-5-21-child"));
+        var runtime = new Runtime(new ActiveInteractiveSession(7, "S-1-5-21-child", false));
         var options = new ProductionProtectionOptions
         {
             Enabled = true,
@@ -35,6 +35,41 @@ public sealed class ProductionProtectionTests
         Assert.Equal(7, store.Current.ManagedSessionId);
         Assert.Equal("S-1-5-21-child", store.Current.ManagedUserSid);
         Assert.Equal(1, runtime.Launches);
+    }
+
+    [Fact]
+    public async Task AdministratorSessionIsNeverReboundAsChild()
+    {
+        var original = Policy(parentLock: true) with
+        {
+            ManagedSessionId = 7,
+            ManagedUserSid = "S-1-5-21-child",
+            TestMode = false
+        };
+        var store = new Store(original);
+        var runtime = new Runtime(
+            new ActiveInteractiveSession(9, "S-1-5-21-parent", true));
+        var options = new ProductionProtectionOptions
+        {
+            Enabled = true,
+            ProfileId = "m1-child",
+            SessionAgentPath = Path.Combine(
+                Path.GetTempPath(),
+                "TuoiTho.SessionAgent.exe"),
+            PollIntervalSeconds = 2
+        };
+        var watchdog = new ProductionSessionAgentWatchdog(
+            Options.Create(options),
+            store,
+            new PolicyChangeSignal(),
+            runtime,
+            NullLogger<ProductionSessionAgentWatchdog>.Instance);
+
+        await watchdog.TickAsync(options, CancellationToken.None);
+
+        Assert.Equal(7, store.Current!.ManagedSessionId);
+        Assert.Equal("S-1-5-21-child", store.Current.ManagedUserSid);
+        Assert.Equal(0, runtime.Launches);
     }
 
     [Fact]
