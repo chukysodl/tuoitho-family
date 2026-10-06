@@ -101,7 +101,7 @@ public sealed class BrowserPolicyListener(
         if (request.IsPolicySync)
         {
             var snapshot = await webPolicies.GetSnapshotAsync(policy.ProfileId, token);
-            return new(true, "POLICY_SNAPSHOT", PolicyRevision: snapshot.Revision, CustomRules: snapshot.Rules.Where(rule => rule.Provider == BrowserProvider.GenericWeb).ToArray());
+            return new(true, "POLICY_SNAPSHOT", PolicyRevision: snapshot.Revision, CustomRules: snapshot.Rules.Where(rule => rule.Provider == BrowserProvider.GenericWeb || rule.Scope is WebRuleScope.YouTubeSearchKeyword or WebRuleScope.TikTokSearchKeyword).ToArray());
         }        var rules = await webPolicies.GetRulesAsync(policy.ProfileId, token);
         var navigation = new BrowserNavigation(request.Provider, request.Host, request.Path, request.ContentType, request.ChannelId, request.ChannelHandle, request.TikTokCreator);
         var decision = WebPolicyEngine.Evaluate(navigation, rules);
