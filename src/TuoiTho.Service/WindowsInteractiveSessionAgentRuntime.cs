@@ -23,9 +23,21 @@ public sealed class WindowsInteractiveSessionAgentRuntime : IInteractiveSessionA
         {
             using var identity = new WindowsIdentity(token);
             var sid = identity.User?.Value;
-            return string.IsNullOrWhiteSpace(sid)
-                ? null
-                : new ActiveInteractiveSession(checked((int)sessionId), sid);
+            if (string.IsNullOrWhiteSpace(sid)) return null;
+
+            var administratorsSid = new SecurityIdentifier(
+                WellKnownSidType.BuiltinAdministratorsSid,
+                null);
+            var isAdministrator = identity.Groups?.Any(group =>
+                string.Equals(
+                    group.Value,
+                    administratorsSid.Value,
+                    StringComparison.OrdinalIgnoreCase)) == true;
+
+            return new ActiveInteractiveSession(
+                checked((int)sessionId),
+                sid,
+                isAdministrator);
         }
         finally
         {
