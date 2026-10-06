@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using Microsoft.Win32;
@@ -62,7 +63,7 @@ public sealed class AccountProtectionManager
     private const uint UfAccountDisable = 0x0002;
     private const int ErrorNoSuchMember = 1387;
 
-    public AccountProtectionSnapshot Snapshot()
+    public static AccountProtectionSnapshot Snapshot()
     {
         using var identity = WindowsIdentity.GetCurrent();
         var currentSid = identity.User?.Value ?? string.Empty;
@@ -199,7 +200,7 @@ public sealed class AccountProtectionManager
         }
     }
 
-    public void OpenWindowsAccountsSettings()
+    public static void OpenWindowsAccountsSettings()
     {
         Process.Start(new ProcessStartInfo
         {
@@ -208,7 +209,7 @@ public sealed class AccountProtectionManager
         });
     }
 
-    private static IReadOnlyList<LocalWindowsAccount> EnumerateLocalAccounts(string currentSid)
+    private static LocalWindowsAccount[] EnumerateLocalAccounts(string currentSid)
     {
         var adminSids = AdministratorsMemberSids();
         var accounts = new List<LocalWindowsAccount>();
@@ -254,7 +255,7 @@ public sealed class AccountProtectionManager
 
                 if (buffer != IntPtr.Zero)
                 {
-                    NetApiBufferFree(buffer);
+                    _ = NetApiBufferFree(buffer);
                     buffer = IntPtr.Zero;
                 }
 
@@ -265,7 +266,7 @@ public sealed class AccountProtectionManager
         finally
         {
             if (buffer != IntPtr.Zero)
-                NetApiBufferFree(buffer);
+                _ = NetApiBufferFree(buffer);
         }
 
         return accounts
@@ -338,7 +339,7 @@ public sealed class AccountProtectionManager
         finally
         {
             if (buffer != IntPtr.Zero)
-                NetApiBufferFree(buffer);
+                _ = NetApiBufferFree(buffer);
         }
 
         return result;
@@ -361,7 +362,7 @@ public sealed class AccountProtectionManager
         {
             using var key = Registry.LocalMachine.OpenSubKey(
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System");
-            return Convert.ToInt32(key?.GetValue("EnableLUA", 0)) == 1;
+            return Convert.ToInt32(key?.GetValue("EnableLUA", 0), CultureInfo.InvariantCulture) == 1;
         }
         catch
         {
