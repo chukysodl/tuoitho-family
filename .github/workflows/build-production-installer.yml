@@ -5,6 +5,7 @@ on:
     branches:
       - task/009-installer-hardening
       - task/009b-time-guardrails
+      - task/009c-installer-keywords
   workflow_dispatch:
     inputs:
       chrome_extension_id:
