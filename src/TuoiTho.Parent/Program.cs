@@ -2,7 +2,6 @@ using TuoiTho.Parent;
 
 ApplicationConfiguration.Initialize();
 
-var accountManager = new AccountProtectionManager();
 var configureIndex = Array.FindIndex(
     args,
     argument => string.Equals(
@@ -18,7 +17,7 @@ if (configureIndex >= 0)
         return;
     }
 
-    var result = accountManager.ConfigureChild(args[configureIndex + 1]);
+    var result = AccountProtectionManager.ConfigureChild(args[configureIndex + 1]);
     MessageBox.Show(
         result.Message,
         "Account Protection Mode",
