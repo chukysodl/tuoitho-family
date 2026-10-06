@@ -170,4 +170,7 @@ internal static partial class ProtectionLog
 
     [LoggerMessage(EventId = 2805, Level = LogLevel.Information, Message = "Created a safe default production policy for session {SessionId}.")]
     public static partial void DefaultPolicyCreated(ILogger logger, int sessionId);
+
+    [LoggerMessage(EventId = 2806, Level = LogLevel.Warning, Message = "SessionAgent watchdog cycle failed; core service remains active and will retry.")]
+    public static partial void WatchdogCycleFailed(ILogger logger, Exception exception);
 }
