@@ -147,18 +147,45 @@
   const pauseMedia = () => document.querySelectorAll("video,audio").forEach(media => { try { media.pause(); } catch { } });
   const remove = id => document.getElementById(id)?.remove();
   const unblock = () => { blocked = false; remove(overlayId); };
-  const block = identity => {
+  const block = (identity = {}, searchKeyword = null) => {
     blocked = true;
     pauseMedia();
-    if (document.getElementById(overlayId)) return;
+    remove(overlayId);
+
     const box = document.createElement("section");
     box.id = overlayId;
     box.setAttribute("role", "dialog");
     box.setAttribute("aria-modal", "true");
-    box.innerHTML = `<div><h1>Nội dung này chưa được phụ huynh cho phép.</h1><p>YouTube</p>${identity.channelHandle ? `<p>Kênh: ${identity.channelHandle}</p>` : ""}<button type="button">Quay lại</button></div>`;
+
+    const card = document.createElement("div");
+    const heading = document.createElement("h1");
+    heading.textContent = searchKeyword
+      ? "Từ khóa tìm kiếm này đã bị phụ huynh chặn."
+      : "Nội dung này chưa được phụ huynh cho phép.";
+
+    const providerText = document.createElement("p");
+    providerText.textContent = "YouTube";
+    card.append(heading, providerText);
+
+    if (searchKeyword) {
+      const keyword = document.createElement("p");
+      keyword.textContent = `Từ khóa: ${searchKeyword}`;
+      card.appendChild(keyword);
+    } else if (identity.channelHandle) {
+      const channel = document.createElement("p");
+      channel.textContent = `Kênh: ${identity.channelHandle}`;
+      card.appendChild(channel);
+    }
+
+    const back = document.createElement("button");
+    back.type = "button";
+    back.textContent = "Quay lại";
+    back.onclick = () => history.back();
+    card.appendChild(back);
+    box.appendChild(card);
+
     Object.assign(box.style, { position: "fixed", inset: "0", zIndex: "2147483647", display: "grid", placeItems: "center", background: "#11233ddd", color: "white", font: "20px Segoe UI,sans-serif", textAlign: "center", pointerEvents: "auto" });
-    Object.assign(box.firstElementChild.style, { maxWidth: "38rem", padding: "2.5rem", borderRadius: "1rem", background: "#173b64" });
-    box.querySelector("button").onclick = () => history.back();
+    Object.assign(card.style, { maxWidth: "38rem", padding: "2.5rem", borderRadius: "1rem", background: "#173b64" });
     document.documentElement.appendChild(box);
   };
   const serviceBanner = visible => {
@@ -170,6 +197,16 @@
     Object.assign(banner.style, { position: "fixed", top: "12px", right: "12px", zIndex: "2147483646", padding: "10px 14px", borderRadius: "8px", background: "#fff3cd", color: "#5f4500", font: "14px Segoe UI,sans-serif" });
     document.documentElement.appendChild(banner);
   };
+  const searchQuery = () => {
+    if (location.pathname !== "/results") return null;
+    try {
+      const value = new URL(location.href).searchParams.get("search_query");
+      return value?.normalize("NFC").trim() || null;
+    } catch {
+      return null;
+    }
+  };
+
   const content = () => {
     const path = location.pathname;
     if (/^\/(?:@|channel\/|c\/|user\/)/i.test(path)) return { contentType: "Channel", ...channelPageIdentity() };
@@ -178,8 +215,7 @@
     if (path === "/watch") return { contentType: "Video", ...ownerIdentity() };
     return { contentType: "Site" };
   };
-  const evaluate = () => {
-    clearTimeout(retryTimer);
+  const evaluateNavigation = () => {
     const identity = content();
     const ownerState = identity.contentType === "ShortForm" ? (identity.channelHandle || identity.channelId ? "SHORT_OWNER_FOUND" : "SHORT_OWNER_UNKNOWN") : null;
     chrome.runtime.sendMessage({ type: "tuoitho-navigation", payload: { profileId: "m1-child", managedSessionId: 0, provider, host: location.hostname, path: location.pathname, ...identity, ownerState } }, response => {
@@ -188,6 +224,25 @@
       if (result.allowed === false) block(identity); else unblock();
       const needsOwner = (identity.contentType === "Video" || identity.contentType === "ShortForm" || identity.contentType === "Playable") && !identity.channelHandle && !identity.channelId;
       if (needsOwner && retry++ < 12) retryTimer = setTimeout(evaluate, 500); else retry = 0;
+    });
+  };
+
+  const evaluate = () => {
+    clearTimeout(retryTimer);
+    const query = searchQuery();
+    if (!query) {
+      evaluateNavigation();
+      return;
+    }
+
+    chrome.runtime.sendMessage({ type: "tuoitho-keyword-check", provider, query }, response => {
+      if (response?.allowed === false) {
+        serviceBanner(false);
+        block({}, response.matchedKeyword || query);
+        retry = 0;
+        return;
+      }
+      evaluateNavigation();
     });
   };
   const schedule = () => { clearTimeout(retryTimer); retryTimer = setTimeout(evaluate, 150); };
@@ -204,6 +259,6 @@
   addEventListener("popstate", schedule);
   addEventListener("scroll", schedule, true);
   addEventListener("keydown", event => { if (event.key === "ArrowDown" || event.key === "ArrowUp") schedule(); }, true);
-  if (globalThis.__tuoithoYouTubeTestHooks) globalThis.__tuoithoYouTubeTestHooks = { currentShortContainer, currentShortContext, shortsOwnerIdentity, shortsOwnerResolution, content };
+  if (globalThis.__tuoithoYouTubeTestHooks) globalThis.__tuoithoYouTubeTestHooks = { currentShortContainer, currentShortContext, shortsOwnerIdentity, shortsOwnerResolution, content, searchQuery };
   schedule();
 })();
