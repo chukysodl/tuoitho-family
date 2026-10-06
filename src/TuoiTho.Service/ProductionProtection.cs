@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using TuoiTho.Core.Policy;
+using TuoiTho.Core.Security;
 
 namespace TuoiTho.Service;
 
@@ -22,7 +23,7 @@ public sealed class ProductionProtectionOptions
     }
 }
 
-public sealed record ActiveInteractiveSession(int SessionId, string UserSid);
+public sealed record ActiveInteractiveSession(int SessionId, string UserSid, bool IsAdministrator);
 
 public interface IInteractiveSessionAgentRuntime
 {
@@ -71,6 +72,39 @@ public sealed class ProductionSessionAgentWatchdog(
     {
         var session = runtime.GetActiveSession();
         if (session is null) return;
+
+        var accountProtection = AccountProtectionConfiguration.TryLoad();
+        if (accountProtection is not null)
+        {
+            if (!string.Equals(
+                    session.UserSid,
+                    accountProtection.ManagedChildSid,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ProtectionLog.NonChildSessionSkipped(
+                    logger,
+                    session.SessionId,
+                    session.UserSid);
+                return;
+            }
+
+            if (session.IsAdministrator)
+            {
+                ProtectionLog.ManagedChildStillAdministrator(
+                    logger,
+                    session.SessionId,
+                    session.UserSid);
+                return;
+            }
+        }
+        else if (session.IsAdministrator)
+        {
+            ProtectionLog.AdministratorSessionSkipped(
+                logger,
+                session.SessionId,
+                session.UserSid);
+            return;
+        }
 
         var policy = await policies.LoadAsync(value.ProfileId, token);
         if (policy is null)
