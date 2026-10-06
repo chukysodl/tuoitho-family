@@ -2,7 +2,6 @@ namespace TuoiTho.Parent;
 
 public sealed class AccountProtectionPanel : UserControl
 {
-    private readonly AccountProtectionManager manager;
     private readonly IParentAuthorizationGate authorization;
     private readonly Label overall = new()
     {
@@ -30,10 +29,8 @@ public sealed class AccountProtectionPanel : UserControl
     private readonly Label message = new() { AutoSize = true, Padding = new Padding(6) };
 
     public AccountProtectionPanel(
-        AccountProtectionManager manager,
         IParentAuthorizationGate authorization)
     {
-        this.manager = manager;
         this.authorization = authorization;
         Dock = DockStyle.Fill;
 
@@ -218,7 +215,7 @@ public sealed class AccountProtectionPanel : UserControl
         if (confirm != DialogResult.Yes)
             return;
 
-        var result = manager.ConfigureChildWithElevation(selected.Sid, FindForm());
+        var result = AccountProtectionManager.ConfigureChildWithElevation(selected.Sid, FindForm());
         message.ForeColor = result.Success ? Color.DarkGreen : Color.Firebrick;
         message.Text = result.Message;
         RefreshState();
