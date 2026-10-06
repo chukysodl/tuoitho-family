@@ -53,6 +53,28 @@ public sealed class WebPolicyTests
         Assert.Equal(expected, key);
     }
 
+
+    [Theory]
+    [InlineData("  Minecraft   hack  ", "keyword:minecraft hack", "Minecraft hack")]
+    [InlineData("Ma Túy", "keyword:ma túy", "Ma Túy")]
+    [InlineData("CỜ VUA", "keyword:cờ vua", "CỜ VUA")]
+    public void SearchKeywordsNormalizeWithoutRecordingSearchHistory(string input, string expectedKey, string expectedDisplay)
+    {
+        Assert.True(WebIdentityNormalizer.TryNormalizeSearchKeyword(input, out var key, out var display));
+        Assert.Equal(expectedKey, key);
+        Assert.Equal(expectedDisplay, display);
+        Assert.DoesNotContain(typeof(WebRule).GetProperties(), property =>
+            property.Name.Contains("Query", StringComparison.OrdinalIgnoreCase) ||
+            property.Name.Contains("History", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("a")]
+    public void InvalidSearchKeywordsAreRejected(string input)
+        => Assert.False(WebIdentityNormalizer.TryNormalizeSearchKeyword(input, out _, out _));
+
     [Fact]
     public void YouTubeChannelRuleBlocksChannelVideoAndShortsButNotOtherChannels()
     {
