@@ -1,5 +1,5 @@
 #define AppName "Quản lý thời gian"
-#define AppVersion "1.0.2"
+#define AppVersion "1.0.3"
 #define AppPublisher "Local Family"
 #ifndef ChromeExtensionId
   #define ChromeExtensionId ""
@@ -158,6 +158,8 @@ var
   Tool: String;
   CheckScript: String;
   CheckParams: String;
+  SummaryPath: String;
+  SummaryText: AnsiString;
 begin
   if CurStep = ssPostInstall then
   begin
@@ -187,6 +189,14 @@ begin
     end;
 
     if ResultCode <> 0 then
-      MsgBox('Cài đặt đã hoàn tất nhưng bước tự kiểm tra bảo vệ chưa đạt. Phần mềm sẽ được giữ nguyên để có thể Repair. Xem chi tiết tại C:\ProgramData\TuoiTho\postinstall-check.log.', mbError, MB_OK);
+    begin
+      SummaryPath := ExpandConstant('{commonappdata}\TuoiTho\postinstall-summary.txt');
+      if LoadStringFromFile(SummaryPath, SummaryText) then
+        MsgBox('Cài đặt đã hoàn tất nhưng bảo vệ lõi còn lỗi:' + #13#10 + #13#10 +
+          String(SummaryText) + #13#10 + #13#10 +
+          'Chi tiết: C:\ProgramData\TuoiTho\postinstall-check.log', mbError, MB_OK)
+      else
+        MsgBox('Cài đặt đã hoàn tất nhưng bảo vệ lõi còn lỗi. Xem C:\ProgramData\TuoiTho\postinstall-check.log', mbError, MB_OK);
+    end;
   end;
 end;
