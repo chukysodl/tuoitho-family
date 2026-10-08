@@ -411,4 +411,7 @@ internal static partial class TamperLog
 
     [LoggerMessage(EventId = 2856, Level = LogLevel.Warning, Message = "Tamper maintenance client request failed.")]
     public static partial void ClientFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 2857, Level = LogLevel.Information, Message = "Tamper maintenance window closed and hardened state applied immediately.")]
+    public static partial void MaintenanceClosed(ILogger logger);
 }
