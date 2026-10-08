@@ -8,6 +8,7 @@ on:
       - task/009c-installer-keywords
       - task/009d-postinstall-selfheal
       - task/009e-account-protection
+      - task/009f-install-order-fix
   workflow_dispatch:
     inputs:
       chrome_extension_id:
