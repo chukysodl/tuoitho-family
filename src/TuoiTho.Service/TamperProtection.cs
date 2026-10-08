@@ -203,6 +203,24 @@ public sealed class TamperMaintenanceCoordinator(
         }
     }
 
+    public async Task ForceHardenAsync(CancellationToken cancellationToken)
+    {
+        if (!protectionOptions.Value.Enabled) return;
+        if (!File.Exists(WindowsTamperProtectionPlatform.GetParentAuthPath())) return;
+
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            await platform.ApplyHardenedStateAsync(cancellationToken);
+            maintenanceUntil = null;
+            hardened = true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public async Task<TamperMaintenanceResponse> AuthorizeAsync(
         TamperMaintenanceRequest request,
         CancellationToken cancellationToken)
@@ -210,6 +228,16 @@ public sealed class TamperMaintenanceCoordinator(
         if (!protectionOptions.Value.Enabled)
         {
             return new TamperMaintenanceResponse(false, "Production protection is disabled.");
+        }
+
+        if (string.Equals(
+                request.Command,
+                TamperMaintenanceProtocol.CloseCommand,
+                StringComparison.Ordinal))
+        {
+            await ForceHardenAsync(cancellationToken);
+            TamperLog.MaintenanceClosed(logger);
+            return new TamperMaintenanceResponse(true, "Maintenance window closed.");
         }
 
         if (!string.Equals(
