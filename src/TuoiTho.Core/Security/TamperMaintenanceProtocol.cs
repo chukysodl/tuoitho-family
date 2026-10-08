@@ -4,6 +4,7 @@ public static class TamperMaintenanceProtocol
 {
     public const string PipeName = "TuoiTho.TamperMaintenance";
     public const string AuthorizeCommand = "authorize-maintenance";
+    public const string CloseCommand = "close-maintenance";
     public const int DefaultDurationSeconds = 180;
     public const int MinimumDurationSeconds = 30;
     public const int MaximumDurationSeconds = 600;
