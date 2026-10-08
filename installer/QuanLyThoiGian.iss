@@ -1,5 +1,5 @@
 #define AppName "Quản lý thời gian"
-#define AppVersion "1.0.4"
+#define AppVersion "1.0.5"
 #define AppPublisher "Local Family"
 #ifndef ChromeExtensionId
   #define ChromeExtensionId ""
@@ -174,6 +174,16 @@ begin
 
       if ResultCode <> 0 then
         RaiseException('Cài đặt chưa hoàn tất vì chưa thiết lập mật khẩu phụ huynh.');
+    end;
+
+    Tool := ExpandConstant('{app}\AdminTool\TuoiTho.AdminTool.exe');
+    if FileExists(Tool) then
+    begin
+      if not Exec(Tool, '--close-maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+        RaiseException('Không thể đóng chế độ bảo trì sau cài đặt.');
+      if ResultCode <> 0 then
+        RaiseException('Dịch vụ bảo vệ chưa khóa lại được sau cài đặt.');
+      Sleep(1500);
     end;
 
     CheckScript := ExpandConstant('{app}\Installer\production-check.ps1');
