@@ -1,10 +1,10 @@
 # TASK-009E release gate: full validation completed before pre-release publish.
-name: Publish Account Protection test release
+name: Publish 1.0.5 Install Order Fix release
 
 on:
   push:
     branches:
-      - task/009e-account-protection
+      - task/009f-install-order-fix
     paths:
       - '.github/workflows/publish-tamper-v2-release.yml'
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Build and validate Account Protection
+      - name: Build and validate 1.0.5 Install Order Fix
         shell: pwsh
         run: |
           dotnet restore TuoiTho.sln
@@ -52,17 +52,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path artifacts\release -Force | Out-Null
-          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.4_AccountProtection_Setup.exe -Force
+          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.5_InstallOrderFix_Setup.exe -Force
           Copy-Item artifacts\production\QuanLyThoiGian-BrowserExtension-Store.zip artifacts\release\BrowserExtension-Store.zip -Force
           Copy-Item artifacts\production\build-info.json artifacts\release\build-info.json -Force
-          Compress-Archive -Path artifacts\release\QLTG_1.0.4_AccountProtection_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.4_AccountProtection.zip -Force
+          Compress-Archive -Path artifacts\release\QLTG_1.0.5_InstallOrderFix_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.5_InstallOrderFix.zip -Force
 
       - name: Publish GitHub pre-release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'account-protection-test-20261006'
+          $tag = 'install-order-fix-20261008'
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) { gh release delete $tag --yes --cleanup-tag }
-          gh release create $tag artifacts\release\QLTG_1.0.4_AccountProtection_Setup.exe artifacts\release\QLTG_1.0.4_AccountProtection.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.4 - Account Protection Mode" --notes "Pre-release for TASK-009E. Adds Account Protection Mode: parent Administrator vs child Standard User separation, managed child SID persistence, UAC safety checks, automatic removal of Administrator membership from the selected child account, and Service logic that never rebinds child enforcement to an Administrator session. Includes all prior Tamper Protection, repair, time guardrail, postinstall self-heal, and YouTube/TikTok keyword features." --prerelease
+          gh release create $tag artifacts\release\QLTG_1.0.5_InstallOrderFix_Setup.exe artifacts\release\QLTG_1.0.5_InstallOrderFix.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.5 - Install Order Fix" --notes "Pre-release for TASK-009F. Fixes install/repair sequencing: closes maintenance explicitly before verification, self-heals a stopped Service, verifies effective protection without directly reading protected production.json, and preserves Account Protection Mode plus all previous features." --prerelease
