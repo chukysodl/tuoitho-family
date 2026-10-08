@@ -16,6 +16,7 @@ var setPassword = args.Contains("--set-password", StringComparer.OrdinalIgnoreCa
 var repairAuth = args.Contains("--repair-auth", StringComparer.OrdinalIgnoreCase);
 var authState = args.Contains("--auth-state", StringComparer.OrdinalIgnoreCase);
 var verifyPassword = args.Contains("--verify-password", StringComparer.OrdinalIgnoreCase);
+var closeMaintenance = args.Contains("--close-maintenance", StringComparer.OrdinalIgnoreCase);
 var authorizeMaintenance =
     args.Contains("--authorize-maintenance", StringComparer.OrdinalIgnoreCase) ||
     args.Contains("--authorize-uninstall", StringComparer.OrdinalIgnoreCase);
@@ -49,6 +50,18 @@ if (setPassword)
     }
 
     Environment.ExitCode = SetPassword(path) ? 0 : 5;
+    return;
+}
+
+if (closeMaintenance)
+{
+    if (!IsAdministrator())
+    {
+        RelaunchElevated(args);
+        return;
+    }
+
+    Environment.ExitCode = RequestMaintenanceClose() ? 0 : 8;
     return;
 }
 
@@ -287,6 +300,40 @@ static ParentPasswordRecord? ReadRecord(string path)
     catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
     {
         return null;
+    }
+}
+
+static bool RequestMaintenanceClose()
+{
+    try
+    {
+        using var pipe = new NamedPipeClientStream(
+            ".",
+            TamperMaintenanceProtocol.PipeName,
+            PipeDirection.InOut,
+            PipeOptions.None);
+
+        pipe.Connect(2500);
+
+        using var reader = new StreamReader(pipe, Encoding.UTF8, true, 1024, leaveOpen: true);
+        using var writer = new StreamWriter(pipe, Encoding.UTF8, 1024, leaveOpen: true) { AutoFlush = true };
+
+        var request = new TamperMaintenanceRequest(
+            TamperMaintenanceProtocol.CloseCommand,
+            string.Empty,
+            TamperMaintenanceProtocol.MinimumDurationSeconds);
+
+        writer.WriteLine(JsonSerializer.Serialize(request));
+        var responseLine = reader.ReadLine();
+        if (string.IsNullOrWhiteSpace(responseLine)) return false;
+
+        var response = JsonSerializer.Deserialize<TamperMaintenanceResponse>(responseLine);
+        return response?.Authorized == true;
+    }
+    catch (Exception exception) when (
+        exception is IOException or TimeoutException or UnauthorizedAccessException or JsonException)
+    {
+        return false;
     }
 }
 
