@@ -1,3 +1,4 @@
+# trigger: publish validated 1.0.5 after compile fix
 # TASK-009E release gate: full validation completed before pre-release publish.
 name: Publish 1.0.5 Install Order Fix release
 
