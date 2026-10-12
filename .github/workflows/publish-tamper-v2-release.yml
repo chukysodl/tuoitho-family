@@ -1,11 +1,10 @@
-# trigger: publish validated 1.0.5 after compile fix
 # TASK-009E release gate: full validation completed before pre-release publish.
-name: Publish 1.0.5 Install Order Fix release
+name: Publish 1.0.6 Finalize Hardening release
 
 on:
   push:
     branches:
-      - task/009f-install-order-fix
+      - task/009g-finalize-hardening
     paths:
       - '.github/workflows/publish-tamper-v2-release.yml'
   workflow_dispatch:
@@ -26,7 +25,7 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Build and validate 1.0.5 Install Order Fix
+      - name: Build and validate 1.0.6 Finalize Hardening
         shell: pwsh
         run: |
           dotnet restore TuoiTho.sln
@@ -53,17 +52,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path artifacts\release -Force | Out-Null
-          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.5_InstallOrderFix_Setup.exe -Force
+          Copy-Item artifacts\installer\QuanLyThoiGian_Setup.exe artifacts\release\QLTG_1.0.6_FinalizeHardening_Setup.exe -Force
           Copy-Item artifacts\production\QuanLyThoiGian-BrowserExtension-Store.zip artifacts\release\BrowserExtension-Store.zip -Force
           Copy-Item artifacts\production\build-info.json artifacts\release\build-info.json -Force
-          Compress-Archive -Path artifacts\release\QLTG_1.0.5_InstallOrderFix_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.5_InstallOrderFix.zip -Force
+          Compress-Archive -Path artifacts\release\QLTG_1.0.6_FinalizeHardening_Setup.exe,artifacts\release\BrowserExtension-Store.zip,artifacts\release\build-info.json -DestinationPath artifacts\release\QLTG_1.0.6_FinalizeHardening.zip -Force
 
       - name: Publish GitHub pre-release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'install-order-fix-20261008'
+          $tag = 'finalize-hardening-20261012'
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) { gh release delete $tag --yes --cleanup-tag }
-          gh release create $tag artifacts\release\QLTG_1.0.5_InstallOrderFix_Setup.exe artifacts\release\QLTG_1.0.5_InstallOrderFix.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.5 - Install Order Fix" --notes "Pre-release for TASK-009F. Fixes install/repair sequencing: closes maintenance explicitly before verification, self-heals a stopped Service, verifies effective protection without directly reading protected production.json, and preserves Account Protection Mode plus all previous features." --prerelease
+          gh release create $tag artifacts\release\QLTG_1.0.6_FinalizeHardening_Setup.exe artifacts\release\QLTG_1.0.6_FinalizeHardening.zip --target "${{ github.sha }}" --title "Quan ly thoi gian 1.0.6 - Finalize Hardening" --notes "Pre-release for TASK-009G. Replaces named-pipe-dependent install finalization with an independent elevated finalizer that ensures the protection Service is running, applies hardened Service and file ACLs directly, then runs post-install verification. Includes Account Protection Mode and all prior time, web, repair, and tamper features." --prerelease
