@@ -1,5 +1,5 @@
 #define AppName "Quản lý thời gian"
-#define AppVersion "1.0.5"
+#define AppVersion "1.0.6"
 #define AppPublisher "Local Family"
 #ifndef ChromeExtensionId
   #define ChromeExtensionId ""
@@ -39,6 +39,7 @@ Source: "..\artifacts\production\AdminTool\TuoiTho.AdminTool.exe"; DestDir: "{tm
 Source: "..\scripts\install-production.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
 Source: "..\scripts\uninstall-production.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
 Source: "..\scripts\production-check.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
+Source: "..\scripts\finalize-production.ps1"; DestDir: "{app}\Installer"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\Parent\TuoiTho.Parent.exe"
@@ -176,15 +177,26 @@ begin
         RaiseException('Cài đặt chưa hoàn tất vì chưa thiết lập mật khẩu phụ huynh.');
     end;
 
-    Tool := ExpandConstant('{app}\AdminTool\TuoiTho.AdminTool.exe');
-    if FileExists(Tool) then
+    CheckScript := ExpandConstant('{app}\Installer\finalize-production.ps1');
+    CheckParams := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + CheckScript +
+      '" -InstallDir "' + ExpandConstant('{app}') + '" -WaitSeconds 20';
+
+    if not Exec('powershell.exe', CheckParams, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      RaiseException('Không thể chạy bước hoàn tất bảo vệ sau cài đặt.');
+
+    if ResultCode <> 0 then
     begin
-      if not Exec(Tool, '--close-maintenance', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-        RaiseException('Không thể đóng chế độ bảo trì sau cài đặt.');
-      if ResultCode <> 0 then
-        RaiseException('Dịch vụ bảo vệ chưa khóa lại được sau cài đặt.');
-      Sleep(1500);
+      Sleep(2000);
+      Exec('powershell.exe', CheckParams, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     end;
+
+    if ResultCode <> 0 then
+    begin
+      MsgBox('Cài đặt đã hoàn tất nhưng chưa thể khóa bảo vệ. Chi tiết: C:\ProgramData\TuoiTho\finalize-protection.log', mbError, MB_OK);
+      exit;
+    end;
+
+    Sleep(1200);
 
     CheckScript := ExpandConstant('{app}\Installer\production-check.ps1');
     CheckParams := '-NoLogo -NoProfile -ExecutionPolicy Bypass -File "' + CheckScript +
