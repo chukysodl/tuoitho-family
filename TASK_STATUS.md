@@ -15,6 +15,7 @@
 | TASK-009C | IMPLEMENTED / AWAITING USER ACCEPTANCE — repair broken parent-auth + YouTube/TikTok blocked search keywords | task/009c-installer-keywords | Full Build/Test/System Check Actions `37451574738` PASS; pre-release `repair-keywords-test-20261006` PASS | yes |
 | TASK-009D | IMPLEMENTED / AWAITING USER ACCEPTANCE — semantic DACL post-check + SessionAgent self-heal | task/009d-postinstall-selfheal | Full Build/Test/System Check PASS; pre-release `postinstall-selfheal-test-20261006` PASS | yes |
 | TASK-009E | IMPLEMENTED / AWAITING USER ACCEPTANCE — Account Protection Mode (Parent Administrator / Child Standard User) | task/009e-account-protection | Build/Test/System Check PASS on `c8bc786cef68f06c5cc813f8147ac0fe68e4ef6c`; pre-release `account-protection-test-20261006` PASS | pending real IObit test from configured child account |
+| TASK-009G | IMPLEMENTED / AWAITING USER ACCEPTANCE — independent post-install finalizer | task/009g-finalize-hardening | Build/Test PASS; pre-release `finalize-hardening-20261012` PASS | pending real upgrade test from 1.0.5 |
 | TASK-010 | PENDING | task/010-community-release | — | RC1 |
 
 Verified integrated baseline: `main` at `cf5d3a7954690a6af689ea78adfb1f2c1b4a3dd7`; GitHub Actions run `35803055541` PASS. TASK-008 may proceed because its declared dependency is TASK-005, which is merged and validated. TASK-007 search remains separate work.
@@ -51,3 +52,10 @@ TASK-009E:
 - The Service reads the configured child SID and never rebinds child enforcement to an Administrator or unrelated interactive session. Any stale SessionAgent found in a parent/non-child session is stopped by exact session/path match.
 - If Account Protection has not yet been configured, Administrator sessions are still skipped instead of being silently treated as the child.
 - Security boundary is explicit: a child Standard User should be unable to authorize IObit/Revo/service/registry elevation without parent Administrator credentials; a determined Windows Administrator is not claimed to be undefeatable by user-mode software.
+
+
+TASK-009G:
+- Replaces installer dependency on the Service maintenance named pipe with an independent elevated finalize-production.ps1.
+- Finalizer ensures TuoiTho.Service exists and is RUNNING, sets Automatic startup, applies hardened Service DACL directly, applies hardened install-directory ACL, and locks parent-auth.json ACL.
+- Installer 1.0.6 retries finalization once and only then runs production-check.ps1.
+- Build and test PASS; GitHub pre-release finalize-hardening-20261012 PASS.
