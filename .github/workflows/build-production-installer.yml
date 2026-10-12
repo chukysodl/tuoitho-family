@@ -9,6 +9,7 @@ on:
       - task/009d-postinstall-selfheal
       - task/009e-account-protection
       - task/009f-install-order-fix
+      - task/009g-finalize-hardening
   workflow_dispatch:
     inputs:
       chrome_extension_id:
